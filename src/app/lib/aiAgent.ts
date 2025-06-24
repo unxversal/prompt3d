@@ -47,52 +47,57 @@ export class AIAgent {
   }
 
   private createSystemPrompt(): string {
-    return `# C3D - Your Advanced AI CAD Assistant
+    return `# C3D - Your AI CAD Assistant
 
-You are C3D, an intelligent AI assistant that helps users create sophisticated 3D models using ReplicaD, a powerful parametric CAD library. C3D is an agentic, code-first CAD editor that empowers users to design through natural language and intelligent code generation.
+You are C3D, an intelligent AI assistant that helps users create 3D models using ReplicaD, a powerful parametric CAD library. You work directly and efficiently with minimal overhead.
 
-## Your Identity & Mission:
-- **Who you are**: C3D, an expert CAD AI specialized in ReplicaD modeling
-- **Your goal**: Transform user ideas into precise, manufacturable 3D models
-- **Your approach**: Intelligent, iterative, and educational - always explain your design decisions
+## Your Mission:
+Transform user ideas into precise, well-commented 3D model code using ReplicaD.
 
-## Core Capabilities:
-
-### 🎯 **Planning & Execution**
-1. **Strategic Planning**: Always start with \`send_plan\` to outline your approach
-2. **Progress Updates**: Use \`notify_user\` to keep users informed throughout the process
-3. **Adaptive Planning**: Use \`update_plan\` when requirements change or better approaches emerge
-4. **Task Completion**: Always conclude with \`complete_task\` providing comprehensive summaries
+## Available Tools:
 
 ### 🛠 **Code Generation & Modification**
-- **Complete Rewrites**: Use \`write_code\` for new implementations or major changes
-- **Precision Updates**: Use \`update_code\` for targeted modifications with exact diffs
-- **Always validate**: Ensure code is syntactically correct and follows ReplicaD patterns
+- **write_code**: Replace the entire code with new implementation
+- **edit_code**: Make targeted edits to specific code sections  
+- **notify_user**: Send markdown messages to keep the user informed
+- **idle**: Mark the task as complete when finished
 
-### 📐 **Available Technology Stack**
+## Code Requirements:
 
-**Primary Libraries:**
-- **replicad**: Core CAD modeling library for creating 3D geometry
-- **replicad-threejs-helper**: Integration layer for Three.js rendering (use \`syncGeometries\`)
-- **three**: 3D graphics library for visualization and interaction
+**Always use extensive comments in your code to explain what you're doing:**
 
-**Code Structure Requirements:**
 \`\`\`typescript
-// Always import required functions at the top
+// Import required functions from replicaD
 import { drawCircle, drawRoundedRectangle, extrude } from 'replicad';
 import { syncGeometries } from 'replicad-threejs-helper';
 
-// Create shapes using replicad
-const shape = drawCircle(20).sketchOnPlane().extrude(50);
+// Create the main cylinder shape
+// Radius: 20mm, Height: 50mm
+const cylinder = drawCircle(20)
+  .sketchOnPlane()
+  .extrude(50);
 
-// Mesh for Three.js rendering
-const meshedShapes = [{
-  name: 'ShapeName',
-  faces: shape.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-  edges: shape.meshEdges(),
-}];
+// Create a rounded rectangle base
+// Width: 40mm, Height: 30mm, Corner radius: 5mm
+const base = drawRoundedRectangle(40, 30, 5)
+  .sketchOnPlane()
+  .extrude(10);
 
-// Convert to Three.js format
+// Mesh shapes for Three.js rendering
+const meshedShapes = [
+  {
+    name: 'Main Cylinder',
+    faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+    edges: cylinder.meshEdges(),
+  },
+  {
+    name: 'Base Plate', 
+    faces: base.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+    edges: base.meshEdges(),
+  }
+];
+
+// Convert to Three.js format for the 3D viewer
 const geometries = syncGeometries(meshedShapes, []);
 
 // Export for the 3D viewer
@@ -101,68 +106,31 @@ export { geometries };
 
 ## Design Principles:
 
-### 📏 **Parametric Design**
-- Use variables for dimensions to enable easy modifications
-- Create reusable, configurable components
-- Think in terms of design intent, not just geometry
+### 📏 **Clear Documentation**
+- Use detailed comments explaining dimensions, design decisions, and functionality
+- Name variables and shapes descriptively
+- Include units in comments (mm, degrees, etc.)
 
 ### 🔧 **Manufacturing Awareness**
-- Consider real-world constraints (tolerances, material properties)
+- Consider real-world constraints and tolerances
 - Design for 3D printing when appropriate
-- Include proper fillets and chamfers for strength and aesthetics
+- Include proper fillets and chamfers
 
-### 🎨 **Best Practices**
-- Start simple, build complexity gradually
-- Use meaningful variable names and clear comments
-- Optimize mesh tolerance for performance vs quality balance
-- Organize code logically with clear sections
-
-## Function Calling Protocol:
-
-### Phase 1: Planning
-1. **Analyze** the user request and current code context
-2. **Plan** your approach using \`send_plan\` with detailed steps
-3. **Communicate** your design philosophy and approach
-
-### Phase 2: Implementation
-1. **Notify** users of major steps using \`notify_user\`
-2. **Code** using \`write_code\` or \`update_code\` as appropriate
-3. **Update** plans if needed using \`update_plan\`
-4. **Iterate** based on results and feedback
-
-### Phase 3: Completion
-1. **Summarize** what was accomplished
-2. **Complete** the task using \`complete_task\`
-3. **Educate** by explaining design decisions and alternatives
+### ⚡ **Efficient Workflow**
+- Work directly without extensive planning overhead
+- Use notify_user sparingly for key updates
+- Complete tasks efficiently with idle when done
 
 ## ReplicaD Documentation Reference:
 ${REPLICAD_DOCS}
 
-## Communication Guidelines:
+## Approach:
+1. **Understand** the user's request
+2. **Implement** using write_code or edit_code with comprehensive comments
+3. **Notify** user of key insights or considerations if needed
+4. **Complete** with idle when finished
 
-### 🗣 **User Notifications**
-- **Info**: General progress updates and explanations
-- **Warning**: Potential issues or design considerations
-- **Error**: Problems that need attention
-- **Success**: Completed milestones and achievements
-
-### 📱 **Collapsed Mode Behavior**
-- Generate concise, informative messages for toast notifications
-- Focus on key progress indicators and completion status
-- Use clear, non-technical language for quick understanding
-
-### 🎓 **Educational Approach**
-- Explain WHY you make specific design choices
-- Teach CAD principles through practical application
-- Provide alternatives and trade-offs when relevant
-- Help users understand the relationship between code and geometry
-
-## Special Context Awareness:
-- **Current Code**: You have access to the user's existing code
-- **Visual Context**: Four orthographic screenshots (front, back, left, right) show the current model
-- **Conversation History**: Previous interactions provide context for iterative development
-
-Remember: You're not just generating code - you're teaching CAD design while creating exactly what the user envisions. Be thorough, be educational, and always strive for engineering excellence.`;
+Remember: Your code comments are your main teaching tool. Make them detailed and educational to help users understand both the code and CAD design principles.`;
   }
 
   async processUserMessage(
@@ -209,7 +177,7 @@ ${context.currentCode}
 Visual Context: I have captured ${screenshots.length} orthographic views of the current 3D model:
 ${screenshots.map(shot => `- ${shot.view.toUpperCase()} view: Current geometry visible`).join('\n')}
 
-Please analyze the request, current code, and visual context to create a comprehensive plan and execute the necessary changes. Start by sending your plan, then proceed with implementation.`,
+Please implement this request directly using the available tools. Use write_code to replace the entire code or edit_code to make targeted changes. Include comprehensive comments explaining your design decisions. Complete the task with idle when finished.`,
       },
     ];
 
@@ -283,47 +251,59 @@ Please analyze the request, current code, and visual context to create a compreh
         let actions: Array<{ name: string; arguments: Record<string, unknown> }> = [];
 
         if (message.content) {
+          console.log('Processing message content:', message.content);
           try {
             const parsed = JSON.parse(message.content.trim());
+            console.log('Successfully parsed JSON:', parsed);
 
             if (Array.isArray(parsed)) {
               actions = parsed as Array<{ name: string; arguments: Record<string, unknown> }>;
+              console.log('Parsed as array of actions:', actions.length);
             } else if (typeof parsed === 'object' && parsed !== null && 'name' in parsed) {
               actions = [parsed as { name: string; arguments: Record<string, unknown> }];
+              console.log('Parsed as single action:', actions[0]);
             }
-          } catch {
+          } catch (parseError) {
+            console.warn('Failed to parse as JSON:', parseError);
             // Try to parse raw function call format like "send_plan({...})"
             const functionCallMatch = message.content.match(/(\w+)\(({[\s\S]*})\)/);
             if (functionCallMatch) {
               const [, functionName, argsString] = functionCallMatch;
+              console.log(`Found function call pattern: ${functionName}(...)`);
               try {
                 const parsedArgs = JSON.parse(argsString);
                 actions = [{
                   name: functionName,
                   arguments: parsedArgs
                 }];
+                console.log('Successfully parsed function call pattern');
               } catch (parseError) {
                 console.warn('Failed to parse function call arguments:', parseError);
               }
             }
             
-            // If still no actions, treat as plain content
-            if (actions.length === 0) {
-              // Not valid JSON or function call, treat as plain content
+            // If still no actions and content looks like raw JSON, don't render it
+            if (actions.length === 0 && message.content.trim().startsWith('{')) {
+              console.warn('Content appears to be malformed JSON, not rendering in chat');
+              // Don't display malformed JSON in chat
+              continue;
             }
           }
         }
 
         if (actions.length > 0) {
+          console.log(`Executing ${actions.length} actions:`, actions.map(a => a.name));
           for (const action of actions) {
             const functionCall: FunctionCall = {
               name: action.name,
               arguments: action.arguments || {},
             };
 
+            console.log(`Calling function: ${functionCall.name}`, functionCall.arguments);
             try {
               const result = await onFunctionCall(functionCall);
               functionCall.result = result;
+              console.log(`Function ${functionCall.name} completed:`, result);
 
               // Provide feedback to the LLM
               messages.push({
@@ -331,12 +311,14 @@ Please analyze the request, current code, and visual context to create a compreh
                 content: `Function ${functionCall.name} executed. Result: ${JSON.stringify(result)}`,
               });
 
-              if (functionCall.name === 'complete_task') {
+              if (functionCall.name === 'idle') {
+                console.log('Task marked as complete, stopping processing');
                 isComplete = true;
                 break;
               }
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              console.error(`Function ${functionCall.name} failed:`, errorMessage);
 
               messages.push({
                 role: 'assistant',
@@ -344,8 +326,9 @@ Please analyze the request, current code, and visual context to create a compreh
               });
             }
           }
-        } else if (message.content) {
-          // Plain content – forward to user as notification
+        } else if (message.content && !message.content.trim().startsWith('{')) {
+          // Only forward plain content that's not malformed JSON
+          console.log('Forwarding plain content as notification');
           await onFunctionCall({
             name: 'notify_user',
             arguments: {
@@ -353,6 +336,8 @@ Please analyze the request, current code, and visual context to create a compreh
               type: 'info',
             },
           });
+        } else {
+          console.warn('No valid actions found and content not suitable for display');
         }
       } catch (error) {
         console.error('AI Agent error:', error);

@@ -4,18 +4,13 @@ import {
   Clock, 
   CheckCircle, 
   AlertCircle, 
-  Loader2, 
+  Loader, 
   Code,
-  Target,
   Edit3,
-  RefreshCw,
   Bell,
   Play,
   CheckSquare,
-  FileText,
-  Lightbulb,
-  Zap,
-  ArrowRight
+  Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
@@ -99,12 +94,23 @@ export default function ChatInterface({
 
   // Load or create conversation
   useEffect(() => {
+    console.log('🔄 Conversation effect triggered:', { 
+      hasExternalConversation: !!externalConversation, 
+      currentConversationId: currentConversation?.id 
+    });
+    
     if (externalConversation) {
-      setCurrentConversation(externalConversation);
-    } else {
+      // Use external conversation if provided
+      if (!currentConversation || currentConversation.id !== externalConversation.id) {
+        console.log('📝 Setting external conversation:', externalConversation.id);
+        setCurrentConversation(externalConversation);
+      }
+    } else if (!currentConversation) {
+      // Only load/create if we don't have a current conversation
+      console.log('🆕 Loading or creating new conversation');
       loadOrCreateConversation();
     }
-  }, [externalConversation, loadOrCreateConversation]);
+  }, [externalConversation, loadOrCreateConversation, currentConversation]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -182,6 +188,14 @@ export default function ChatInterface({
     }
   };
 
+  // Handle Enter key for message sending
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
+
   const handleFunctionCall = async (call: FunctionCall): Promise<unknown> => {
     setAgentState(prev => ({ ...prev, currentFunction: call.name }));
 
@@ -193,17 +207,11 @@ export default function ChatInterface({
         case 'write_code':
           return await handleWriteCode(call);
           
-        case 'update_code':
-          return await handleUpdateCode(call);
+        case 'edit_code':
+          return await handleEditCode(call);
           
-        case 'send_plan':
-          return await handleSendPlan(call);
-          
-        case 'update_plan':
-          return await handleUpdatePlan(call);
-          
-        case 'complete_task':
-          return await handleCompleteTask(call);
+        case 'idle':
+          return await handleIdle(call);
           
         default:
           throw new Error(`Unknown function: ${call.name}`);
@@ -214,14 +222,14 @@ export default function ChatInterface({
     }
   };
 
-  const handleNotifyUser = async (call: FunctionCall): Promise<string> => {
-    const { message: msg, type = 'info', isCollapsedMessage = false } = call.arguments as {
+    const handleNotifyUser = async (call: FunctionCall): Promise<string> => {
+    console.log('🔔 handleNotifyUser called:', call);
+    const { message: msg, type = 'info' } = call.arguments as {
       message: string;
       type?: 'info' | 'warning' | 'error' | 'success';
-      isCollapsedMessage?: boolean;
     };
 
-    if (agentState.isCollapsed || isCollapsedMessage) {
+    if (agentState.isCollapsed) {
       // Generate short message for toast in collapsed mode
       const shortMessage = msg.length > 60 ? msg.substring(0, 57) + '...' : msg;
       
@@ -240,19 +248,21 @@ export default function ChatInterface({
       }
     }
 
-         // Always add to conversation for full mode
-     await addMessageToConversation({
-       id: generateId(),
-       role: 'assistant',
-       content: msg,
-       timestamp: new Date(),
-       metadata: { status: type === 'info' || type === 'warning' || type === 'success' ? 'completed' : type }
-     });
+    // Always add to conversation for full mode
+    await addMessageToConversation({
+      id: generateId(),
+      role: 'assistant',
+      content: msg,
+      timestamp: new Date(),
+      metadata: { status: type === 'info' || type === 'warning' || type === 'success' ? 'completed' : type }
+    });
 
+    console.log('✅ handleNotifyUser completed');
     return 'Message sent to user';
   };
 
   const handleWriteCode = async (call: FunctionCall): Promise<string> => {
+    console.log('📝 handleWriteCode called:', call);
     const { code, explanation } = call.arguments as {
       code: string;
       explanation?: string;
@@ -260,9 +270,11 @@ export default function ChatInterface({
 
     // Update the code in the editor
     onCodeChange(code);
+    console.log('Code updated in editor, length:', code.length);
     
     // Execute the code automatically if handler is provided
     if (onCodeExecute) {
+      console.log('Executing code...');
       setTimeout(() => {
         onCodeExecute();
       }, 100);
@@ -270,17 +282,17 @@ export default function ChatInterface({
 
     // Notification for collapsed mode
     if (agentState.isCollapsed) {
-      toast.success('Code updated', {
+      toast.success('Code generated', {
         description: explanation || 'New code generated and applied',
         icon: <Code size={16} />
       });
     }
 
-    // Add to conversation
+    // Add simplified message to conversation
     await addMessageToConversation({
       id: generateId(),
       role: 'assistant',
-      content: `✅ **Code Updated**\n\n${explanation || 'I\'ve generated new code for your model.'}\n\n\`\`\`typescript\n${code.slice(0, 200)}${code.length > 200 ? '...' : ''}\n\`\`\``,
+      content: `🔧 **C3D Generated New Code**\n\n${explanation || 'I\'ve generated new code for your model.'}\n\nThe code has been applied to the editor and executed automatically.`,
       timestamp: new Date(),
       metadata: { 
         status: 'completed' as const,
@@ -288,10 +300,12 @@ export default function ChatInterface({
       }
     });
 
+    console.log('✅ handleWriteCode completed');
     return 'Code updated successfully';
   };
 
-  const handleUpdateCode = async (call: FunctionCall): Promise<string> => {
+  const handleEditCode = async (call: FunctionCall): Promise<string> => {
+    console.log('✏️ handleEditCode called:', call);
     const { oldCode, newCode, explanation } = call.arguments as {
       oldCode: string;
       newCode: string;
@@ -301,9 +315,11 @@ export default function ChatInterface({
     try {
       const updatedCode = applyCodeDiff(currentCode, oldCode, newCode);
       onCodeChange(updatedCode);
+      console.log('Code diff applied successfully');
       
       // Execute the code automatically if handler is provided
       if (onCodeExecute) {
+        console.log('Executing updated code...');
         setTimeout(() => {
           onCodeExecute();
         }, 100);
@@ -311,17 +327,17 @@ export default function ChatInterface({
 
       // Notification for collapsed mode
       if (agentState.isCollapsed) {
-        toast.success('Code updated', {
+        toast.success('Code edited', {
           description: explanation || 'Code modifications applied',
           icon: <Edit3 size={16} />
         });
       }
 
-      // Add to conversation
+      // Add simplified message to conversation
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
-        content: `🔧 **Code Modified**\n\n${explanation || 'I\'ve updated your code with targeted changes.'}\n\n**Changes:**\n\`\`\`diff\n- ${oldCode.slice(0, 100)}${oldCode.length > 100 ? '...' : ''}\n+ ${newCode.slice(0, 100)}${newCode.length > 100 ? '...' : ''}\n\`\`\``,
+        content: `🔧 **C3D Edited Code**\n\n${explanation || 'I\'ve updated your code with targeted changes.'}\n\nThe changes have been applied to the editor and executed automatically.`,
         timestamp: new Date(),
         metadata: { 
           status: 'completed' as const,
@@ -329,12 +345,14 @@ export default function ChatInterface({
         }
       });
 
+      console.log('✅ handleEditCode completed');
       return 'Code diff applied successfully';
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to apply code diff';
+      console.error('❌ handleEditCode error:', errorMessage);
       
       if (agentState.isCollapsed) {
-        toast.error('Code update failed', {
+        toast.error('Code edit failed', {
           description: errorMessage
         });
       }
@@ -343,94 +361,20 @@ export default function ChatInterface({
     }
   };
 
-  const handleSendPlan = async (call: FunctionCall): Promise<string> => {
-    const { plan, steps } = call.arguments as {
-      plan: string;
-      steps?: string[];
-    };
-
-    // Update agent state with plan
-    setAgentState(prev => ({ ...prev, plan }));
-
-    // Notification for collapsed mode
-    if (agentState.isCollapsed) {
-      toast.info('Plan created', {
-        description: 'AI has created a plan for your request',
-        icon: <Target size={16} />
-      });
-    }
-
-    // Format plan with steps
-    let formattedPlan = `📋 **Implementation Plan**\n\n${plan}`;
-    
-    if (steps && steps.length > 0) {
-      formattedPlan += '\n\n**Steps:**\n' + steps.map((step, index) => 
-        `${index + 1}. ${step}`
-      ).join('\n');
-    }
-
-    // Add to conversation
-    await addMessageToConversation({
-      id: generateId(),
-      role: 'assistant',
-      content: formattedPlan,
-      timestamp: new Date(),
-      metadata: { 
-        status: 'completed' as const,
-        plan,
-        functionCall: call
-      }
-    });
-
-    return 'Plan sent to user';
-  };
-
-  const handleUpdatePlan = async (call: FunctionCall): Promise<string> => {
-    const { updatedPlan, reason } = call.arguments as {
-      updatedPlan: string;
-      reason: string;
-    };
-
-    // Update agent state with new plan
-    setAgentState(prev => ({ ...prev, plan: updatedPlan }));
-
-    // Notification for collapsed mode
-    if (agentState.isCollapsed) {
-      toast.info('Plan updated', {
-        description: reason,
-        icon: <RefreshCw size={16} />
-      });
-    }
-
-    // Add to conversation
-    await addMessageToConversation({
-      id: generateId(),
-      role: 'assistant',
-      content: `🔄 **Plan Updated**\n\n**Reason:** ${reason}\n\n**Updated Plan:**\n${updatedPlan}`,
-      timestamp: new Date(),
-      metadata: { 
-        status: 'completed' as const,
-        plan: updatedPlan,
-        functionCall: call
-      }
-    });
-
-    return 'Plan updated successfully';
-  };
-
-  const handleCompleteTask = async (call: FunctionCall): Promise<string> => {
-    const { summary, finalMessage } = call.arguments as {
+  const handleIdle = async (call: FunctionCall): Promise<string> => {
+    console.log('💤 handleIdle called:', call);
+    const { summary, message: msg } = call.arguments as {
       summary: string;
-      finalMessage: string;
+      message: string;
     };
 
-    // Clear current plan and function
-    setAgentState(prev => ({ ...prev, plan: undefined, currentFunction: undefined }));
+    // Clear current function
+    setAgentState(prev => ({ ...prev, currentFunction: undefined }));
 
     // Notification for collapsed mode
     if (agentState.isCollapsed) {
       toast.success('Task completed', {
-        description: 'AI has finished working on your request',
+        description: summary,
         icon: <CheckCircle size={16} />
       });
     }
@@ -439,7 +383,7 @@ export default function ChatInterface({
     await addMessageToConversation({
       id: generateId(),
       role: 'assistant',
-      content: `✅ **Task Completed**\n\n**Summary:** ${summary}\n\n${finalMessage}`,
+      content: `✅ **Task Completed**\n\n**Summary:** ${summary}\n\n${msg}`,
       timestamp: new Date(),
       metadata: { 
         status: 'completed' as const,
@@ -448,6 +392,7 @@ export default function ChatInterface({
       }
     });
 
+    console.log('✅ handleIdle completed');
     return 'Task completed successfully';
   };
 
@@ -478,22 +423,6 @@ export default function ChatInterface({
   }> = ({ functionCall, status = 'completed' }) => {
     const getFunctionConfig = (name: string) => {
       switch (name) {
-        case 'send_plan':
-          return {
-            icon: <Target size={16} />,
-            title: 'Plan Created',
-            color: '#3b82f6',
-            bgColor: 'rgba(59, 130, 246, 0.1)',
-            borderColor: 'rgba(59, 130, 246, 0.3)'
-          };
-        case 'update_plan':
-          return {
-            icon: <RefreshCw size={16} />,
-            title: 'Plan Updated',
-            color: '#8b5cf6',
-            bgColor: 'rgba(139, 92, 246, 0.1)',
-            borderColor: 'rgba(139, 92, 246, 0.3)'
-          };
         case 'write_code':
           return {
             icon: <Code size={16} />,
@@ -502,7 +431,7 @@ export default function ChatInterface({
             bgColor: 'rgba(16, 185, 129, 0.1)',
             borderColor: 'rgba(16, 185, 129, 0.3)'
           };
-        case 'update_code':
+        case 'edit_code':
           return {
             icon: <Edit3 size={16} />,
             title: 'Code Modified',
@@ -518,7 +447,7 @@ export default function ChatInterface({
             bgColor: 'rgba(107, 114, 128, 0.1)',
             borderColor: 'rgba(107, 114, 128, 0.3)'
           };
-        case 'complete_task':
+        case 'idle':
           return {
             icon: <CheckSquare size={16} />,
             title: 'Task Completed',
@@ -541,7 +470,7 @@ export default function ChatInterface({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const args: any = functionCall.arguments || {};
     const statusIcon = status === 'pending' ? 
-      <Loader2 size={14} className={styles.spinning} /> :
+      <Loader size={14} className={styles.spinning} /> :
       status === 'error' ? 
       <AlertCircle size={14} style={{ color: '#ef4444' }} /> :
       <CheckCircle size={14} style={{ color: config.color }} />;
@@ -570,61 +499,32 @@ export default function ChatInterface({
           </div>
         </div>
         
-        {/* Show function arguments if available */}
+                {/* Show function arguments if available */}
         {Object.keys(args).length > 0 && (
           <div className={styles.functionArgs}>
-                         {args.plan && (
-               <div className={styles.planContent}>
-                 <FileText size={14} style={{ color: config.color }} />
-                 <span>{String(args.plan)}</span>
-               </div>
-             )}
-             
-             {args.steps && Array.isArray(args.steps) && (
-               <div className={styles.stepsContent}>
-                 <div className={styles.stepsHeader}>
-                   <Lightbulb size={14} style={{ color: config.color }} />
-                   <span>Steps:</span>
-                 </div>
-                 <ol className={styles.stepsList}>
-                   {(args.steps as string[]).map((step: string, index: number) => (
-                     <li key={index} className={styles.stepItem}>
-                       <ArrowRight size={12} style={{ color: config.color }} />
-                       <span>{String(step)}</span>
-                     </li>
-                   ))}
-                 </ol>
-               </div>
-             )}
-             
-             {args.message && (
-               <div className={styles.notificationContent}>
-                 <span>{String(args.message)}</span>
-               </div>
-             )}
-             
-             {args.explanation && (
-               <div className={styles.codeInfo}>
-                 <div className={styles.codeExplanation}>
-                   <Play size={14} style={{ color: config.color }} />
-                   <span>{String(args.explanation)}</span>
-                 </div>
-               </div>
-             )}
-             
-             {args.summary && (
-               <div className={styles.taskSummary}>
-                 <div className={styles.summaryContent}>
-                   <CheckSquare size={14} style={{ color: config.color }} />
-                   <span>{String(args.summary)}</span>
-                 </div>
-                 {args.finalMessage && (
-                   <div className={styles.finalMessage}>
-                     <span>{String(args.finalMessage)}</span>
-                   </div>
-                 )}
-               </div>
-             )}
+            {args.message && (
+              <div className={styles.notificationContent}>
+                <span>{String(args.message)}</span>
+              </div>
+            )}
+            
+            {args.explanation && (
+              <div className={styles.codeInfo}>
+                <div className={styles.codeExplanation}>
+                  <Play size={14} style={{ color: config.color }} />
+                  <span>{String(args.explanation)}</span>
+                </div>
+              </div>
+            )}
+            
+            {args.summary && (
+              <div className={styles.taskSummary}>
+                <div className={styles.summaryContent}>
+                  <CheckSquare size={14} style={{ color: config.color }} />
+                  <span>{String(args.summary)}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -646,14 +546,13 @@ export default function ChatInterface({
 
   const getFunctionIcon = (functionName?: string) => {
     switch (functionName) {
-      case 'send_plan':
-      case 'update_plan':
-        return <Target size={14} className={styles.functionIcon} />;
       case 'write_code':
         return <Code size={14} className={styles.functionIcon} />;
-      case 'update_code':
+      case 'edit_code':
         return <Edit3 size={14} className={styles.functionIcon} />;
-      case 'complete_task':
+      case 'notify_user':
+        return <Bell size={14} className={styles.functionIcon} />;
+      case 'idle':
         return <CheckCircle size={14} className={styles.functionIcon} />;
       default:
         return null;
@@ -669,18 +568,6 @@ export default function ChatInterface({
           functionCall={msg.metadata.functionCall} 
           status={msg.metadata.status}
         />
-      )}
-      
-      {msg.metadata?.plan && (
-        <div className={styles.planDisplay}>
-          <div className={styles.planHeader}>
-            <Target size={16} />
-            <span>Current Plan</span>
-          </div>
-          <div className={styles.planContent}>
-            {msg.metadata.plan}
-          </div>
-        </div>
       )}
       
       <div className={styles.messageContent}>
@@ -703,14 +590,7 @@ export default function ChatInterface({
         </div>
       </div>
       
-      {agentState.isProcessing && msg.id === currentConversation?.messages[currentConversation.messages.length - 1]?.id && (
-        <div className={styles.processingIndicator}>
-          <Loader2 className={styles.spinning} size={14} />
-          <span>
-            {agentState.currentFunction ? `Executing ${agentState.currentFunction}...` : 'Processing...'}
-          </span>
-        </div>
-      )}
+
     </div>
   );
 
@@ -726,19 +606,24 @@ export default function ChatInterface({
             className={styles.chatTextarea}
             rows={7}
             disabled={agentState.isProcessing}
+            onKeyDown={handleKeyDown}
           />
           <button 
             type="submit" 
             className={styles.chatSubmit}
             disabled={!message.trim() || agentState.isProcessing}
           >
-            {agentState.isProcessing ? <Loader2 size={16} className={styles.spinning} /> : <Send size={16} />}
+            {agentState.isProcessing ? <Loader size={16} className={styles.spinning} /> : <Send size={16} />}
           </button>
         </form>
         {agentState.currentFunction && (
           <div className={styles.functionStatus}>
-            <Loader2 size={12} className={styles.spinning} />
-            Executing: {agentState.currentFunction}
+            <Loader size={12} className={styles.spinning} />
+            {agentState.currentFunction === 'write_code' ? 'C3D is writing code...' :
+             agentState.currentFunction === 'edit_code' ? 'C3D is editing code...' :
+             agentState.currentFunction === 'notify_user' ? 'C3D is responding...' :
+             agentState.currentFunction === 'idle' ? 'C3D is finishing up...' :
+             `Executing: ${agentState.currentFunction}`}
           </div>
         )}
       </div>
@@ -761,20 +646,25 @@ export default function ChatInterface({
         className={styles.chatInput}
         rows={7}
         disabled={agentState.isProcessing}
+        onKeyDown={handleKeyDown}
       />
       <button 
         type="submit" 
         className={styles.chatSubmitButton}
         disabled={!message.trim() || agentState.isProcessing}
       >
-        {agentState.isProcessing ? <Loader2 size={16} className={styles.spinning} /> : <Send size={16} />}
+        {agentState.isProcessing ? <Loader size={16} className={styles.spinning} /> : <Send size={16} />}
       </button>
-      {agentState.currentFunction && (
-        <div className={styles.functionStatusInline}>
-          <Loader2 size={12} className={styles.spinning} />
-          Executing: {agentState.currentFunction}
-        </div>
-      )}
+              {agentState.currentFunction && (
+          <div className={styles.functionStatusInline}>
+            <Loader size={12} className={styles.spinning} />
+            {agentState.currentFunction === 'write_code' ? 'C3D is writing code...' :
+             agentState.currentFunction === 'edit_code' ? 'C3D is editing code...' :
+             agentState.currentFunction === 'notify_user' ? 'C3D is responding...' :
+             agentState.currentFunction === 'idle' ? 'C3D is finishing up...' :
+             `Executing: ${agentState.currentFunction}`}
+          </div>
+        )}
     </form>
   );
 

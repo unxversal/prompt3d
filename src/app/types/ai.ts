@@ -60,22 +60,18 @@ export interface AIContext {
 export const AI_FUNCTIONS: AIAgentFunction[] = [
   {
     name: 'notify_user',
-    description: 'Send a notification or update message to the user',
+    description: 'Send a notification or message to the user with markdown support',
     parameters: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          description: 'The message to display to the user'
+          description: 'The message to display to the user in markdown format'
         },
         type: {
           type: 'string',
           enum: ['info', 'warning', 'error', 'success'],
           description: 'The type of notification'
-        },
-        isCollapsedMessage: {
-          type: 'boolean',
-          description: 'Whether this is a short message for collapsed mode'
         }
       },
       required: ['message']
@@ -100,8 +96,8 @@ export const AI_FUNCTIONS: AIAgentFunction[] = [
     }
   },
   {
-    name: 'update_code',
-    description: 'Apply a diff-based update to the existing code',
+    name: 'edit_code',
+    description: 'Apply a targeted edit to specific parts of the existing code',
     parameters: {
       type: 'object',
       properties: {
@@ -122,45 +118,8 @@ export const AI_FUNCTIONS: AIAgentFunction[] = [
     }
   },
   {
-    name: 'send_plan',
-    description: 'Send the initial plan for what the agent will do',
-    parameters: {
-      type: 'object',
-      properties: {
-        plan: {
-          type: 'string',
-          description: 'Detailed plan of what the agent will accomplish'
-        },
-        steps: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of steps the agent will take'
-        }
-      },
-      required: ['plan']
-    }
-  },
-  {
-    name: 'update_plan',
-    description: 'Update or modify the current plan',
-    parameters: {
-      type: 'object',
-      properties: {
-        updatedPlan: {
-          type: 'string',
-          description: 'The updated plan description'
-        },
-        reason: {
-          type: 'string',
-          description: 'Why the plan was updated'
-        }
-      },
-      required: ['updatedPlan', 'reason']
-    }
-  },
-  {
-    name: 'complete_task',
-    description: 'Mark the task as complete and provide a summary',
+    name: 'idle',
+    description: 'Mark the current task as complete and stop processing',
     parameters: {
       type: 'object',
       properties: {
@@ -168,12 +127,12 @@ export const AI_FUNCTIONS: AIAgentFunction[] = [
           type: 'string',
           description: 'Summary of what was accomplished'
         },
-        finalMessage: {
+        message: {
           type: 'string',
           description: 'Final message to the user'
         }
       },
-      required: ['summary', 'finalMessage']
+      required: ['summary', 'message']
     }
   }
 ]; 

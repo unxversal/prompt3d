@@ -431,12 +431,12 @@ export default function CADClientPage() {
     // Find the last code from the conversation
     let lastCode = code; // fallback to current code
     
-    // Look for write_code or update_code function calls in reverse order
+    // Look for write_code or edit_code function calls in reverse order
     for (let i = conversation.messages.length - 1; i >= 0; i--) {
       const message = conversation.messages[i];
       if (message.metadata?.functionCall) {
         const funcCall = message.metadata.functionCall;
-        if (funcCall.name === 'write_code' && funcCall.arguments.code) {
+        if ((funcCall.name === 'write_code' || funcCall.name === 'edit_code') && funcCall.arguments.code) {
           lastCode = funcCall.arguments.code as string;
           break;
         }
