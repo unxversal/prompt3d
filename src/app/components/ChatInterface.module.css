@@ -77,33 +77,25 @@
 }
 
 .messageContent {
-  padding: 0.75rem;
-  border-radius: 0;
-  font-size: 0.875rem;
+  padding: 12px 16px;
+  border-radius: 0px;
+  font-size: 14px;
   line-height: 1.5;
-  word-wrap: break-word;
-  border: 1px solid;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  position: relative;
 }
 
 .message.user .messageContent {
-  background: #ffffff;
-  color: #000000;
-  border-color: #333333;
-  margin-left: 2rem;
-}
-
-.dark .message.assistant .messageContent {
-  background: #1a1a1a;
+  background: #000000;
   color: #ffffff;
-  border-color: #333333;
-  margin-right: 2rem;
+  border: 1px solid #333;
 }
 
-.light .message.assistant .messageContent {
-  background: #ffffff;
-  color: #000000;
-  border-color: #e5e5e5;
-  margin-right: 2rem;
+.message.assistant .messageContent {
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #333;
 }
 
 /* Code formatting in messages */
@@ -589,14 +581,15 @@
 }
 
 .message.user .messageContent {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #333;
 }
 
 .message.assistant .messageContent {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #333;
 }
 
 /* Processing Indicator */
