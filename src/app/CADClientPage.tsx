@@ -113,7 +113,7 @@ export default function CADClientPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace'>('hidden');
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [model, setModel] = useState<string>('google/gemma-3-27b-it:free');
+  const [model, setModel] = useState<string>('google/gemini-2.0-flash-exp:free');
   const [showSettings, setShowSettings] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);

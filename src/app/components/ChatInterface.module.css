@@ -723,4 +723,224 @@
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
   }
+}
+
+/* Function Call Display Styles */
+.functionCallDisplay {
+  margin: 8px 0;
+  border: 1px solid;
+  border-left: 3px solid;
+  background: #000000;
+  font-size: 0.875rem;
+}
+
+.functionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.functionInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.functionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.functionTitle {
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.functionStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.functionArgs {
+  padding: 16px;
+}
+
+.planContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+}
+
+.planContent span {
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+.stepsContent {
+  margin-top: 12px;
+}
+
+.stepsHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+}
+
+.stepsHeader span {
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.stepsList {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.stepItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-left: 1px solid #333333;
+  margin-left: 16px;
+  color: #cccccc;
+  line-height: 1.4;
+}
+
+.notificationContent {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+.codeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.codeExplanation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+.taskSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summaryContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #333333;
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+.finalMessage {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #333333;
+  color: #cccccc;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Animation for function calls */
+@keyframes functionCallSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.functionCallDisplay {
+  animation: functionCallSlideIn 0.3s ease-out;
+}
+
+/* Status indicators */
+.functionStatus .animate-spin {
+  color: #f59e0b;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .functionArgs {
+    padding: 12px;
+  }
+  
+  .functionHeader {
+    padding: 10px 12px;
+  }
+  
+  .planContent,
+  .codeExplanation,
+  .summaryContent,
+  .notificationContent {
+    padding: 10px;
+  }
+  
+  .stepItem {
+    padding: 6px 10px;
+  }
+}
+
+/* Markdown Styling */
+.markdown p {
+  margin: 0 0 0.75rem;
+  line-height: 1.6;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 0.75rem 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.markdown li {
+  margin-bottom: 0.25rem;
+  line-height: 1.6;
+}
+
+.markdown pre {
+  overflow-x: auto;
+  background: #0d0d0d;
+  padding: 1rem;
+  border: 1px solid #333;
+  color: #ffffff;
+}
+
+.markdown pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
 } 

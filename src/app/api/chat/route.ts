@@ -6,14 +6,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { 
       apiKey, 
-      model = 'google/gemma-3-27b-it:free',
+      model = 'google/gemini-2.0-flash-exp:free',
       messages,
       tools,
       tool_choice = 'auto',
       response_format,
-      temperature = 0.1,
-      max_tokens = 4000
+      temperature = 0.9,
+      max_tokens = 8000
     } = body;
+
+    // Add a delay for free models to avoid rate limiting
+    if (model.endsWith(':free')) {
+      console.log('Free model detected, waiting 21 seconds');
+      await new Promise(resolve => setTimeout(resolve, 21000));
+    }
+
+    console.log('Received model', model)
+    console.log('Received tools', tools)
+    console.log('Received tool_choice', tool_choice)
+    console.log('Received response_format', response_format)
+    console.log('Received temperature', temperature)
+    console.log('Received max_tokens', max_tokens)
 
     // Validate required fields
     if (!apiKey) {
@@ -35,7 +48,7 @@ export async function POST(request: NextRequest) {
       baseURL: 'https://openrouter.ai/api/v1',
       apiKey: apiKey,
       defaultHeaders: {
-        'HTTP-Referer': 'https://prompt3d.com',
+        'HTTP-Referer': 'https://prompt3d.co',
         'X-Title': 'C3D - AI CAD Assistant',
       },
     });
@@ -85,43 +98,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to process AI request' },
       { status: 500 }
     );
-  }
-}
-
-// Test endpoint for API key validation
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const apiKey = searchParams.get('apiKey');
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'API key is required' }, 
-        { status: 400 }
-      );
-    }
-
-    // Test API key by checking credits endpoint
-    const response = await fetch('https://openrouter.ai/api/v1/credits', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://prompt3d.com',
-        'X-Title': 'C3D - AI CAD Assistant',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Invalid API key');
-    }
-
-    const creditsData = await response.json();
-    return NextResponse.json({ 
-      valid: true, 
-      credits: creditsData.data 
-    });
-
-  } catch (error) {
-    console.error('API key test error:', error);
-    return NextResponse.json({ valid: false }, { status: 401 });
   }
 } 

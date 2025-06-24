@@ -8,7 +8,14 @@ import {
   Code,
   Target,
   Edit3,
-  RefreshCw
+  RefreshCw,
+  Bell,
+  Play,
+  CheckSquare,
+  FileText,
+  Lightbulb,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
@@ -445,20 +452,183 @@ export default function ChatInterface({
   };
 
   const addMessageToConversation = async (message: Message): Promise<void> => {
-    if (!currentConversation) return;
+    setCurrentConversation(prev => {
+      if (!prev) return prev;
 
-    const updatedConversation = {
-      ...currentConversation,
-      messages: [...currentConversation.messages, message],
-      updatedAt: new Date(),
-    };
-    
-    setCurrentConversation(updatedConversation);
-    await conversationStore.saveConversation(updatedConversation);
+      const updated = {
+        ...prev,
+        messages: [...prev.messages, message],
+        updatedAt: new Date(),
+      };
+
+      // Persist asynchronously (not awaiting inside setState)
+      conversationStore.saveConversation(updated);
+
+      return updated;
+    });
   };
 
   const generateId = (): string => {
     return Math.random().toString(36).substr(2, 9);
+  };
+
+  const FunctionCallDisplay: React.FC<{ 
+    functionCall: FunctionCall;
+    status?: 'pending' | 'completed' | 'error';
+  }> = ({ functionCall, status = 'completed' }) => {
+    const getFunctionConfig = (name: string) => {
+      switch (name) {
+        case 'send_plan':
+          return {
+            icon: <Target size={16} />,
+            title: 'Plan Created',
+            color: '#3b82f6',
+            bgColor: 'rgba(59, 130, 246, 0.1)',
+            borderColor: 'rgba(59, 130, 246, 0.3)'
+          };
+        case 'update_plan':
+          return {
+            icon: <RefreshCw size={16} />,
+            title: 'Plan Updated',
+            color: '#8b5cf6',
+            bgColor: 'rgba(139, 92, 246, 0.1)',
+            borderColor: 'rgba(139, 92, 246, 0.3)'
+          };
+        case 'write_code':
+          return {
+            icon: <Code size={16} />,
+            title: 'Code Generated',
+            color: '#10b981',
+            bgColor: 'rgba(16, 185, 129, 0.1)',
+            borderColor: 'rgba(16, 185, 129, 0.3)'
+          };
+        case 'update_code':
+          return {
+            icon: <Edit3 size={16} />,
+            title: 'Code Modified',
+            color: '#f59e0b',
+            bgColor: 'rgba(245, 158, 11, 0.1)',
+            borderColor: 'rgba(245, 158, 11, 0.3)'
+          };
+        case 'notify_user':
+          return {
+            icon: <Bell size={16} />,
+            title: 'Notification',
+            color: '#6b7280',
+            bgColor: 'rgba(107, 114, 128, 0.1)',
+            borderColor: 'rgba(107, 114, 128, 0.3)'
+          };
+        case 'complete_task':
+          return {
+            icon: <CheckSquare size={16} />,
+            title: 'Task Completed',
+            color: '#059669',
+            bgColor: 'rgba(5, 150, 105, 0.1)',
+            borderColor: 'rgba(5, 150, 105, 0.3)'
+          };
+        default:
+          return {
+            icon: <Zap size={16} />,
+            title: 'Function Call',
+            color: '#6b7280',
+            bgColor: 'rgba(107, 114, 128, 0.1)',
+            borderColor: 'rgba(107, 114, 128, 0.3)'
+          };
+      }
+    };
+
+    const config = getFunctionConfig(functionCall.name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const args: any = functionCall.arguments || {};
+    const statusIcon = status === 'pending' ? 
+      <Loader2 size={14} className={styles.spinning} /> :
+      status === 'error' ? 
+      <AlertCircle size={14} style={{ color: '#ef4444' }} /> :
+      <CheckCircle size={14} style={{ color: config.color }} />;
+
+    return (
+      <div 
+        className={styles.functionCallDisplay}
+        style={{
+          backgroundColor: config.bgColor,
+          borderColor: config.borderColor,
+          borderLeftColor: config.color
+        }}
+      >
+        <div className={styles.functionHeader}>
+          <div className={styles.functionInfo}>
+            <div 
+              className={styles.functionIcon}
+              style={{ color: config.color }}
+            >
+              {config.icon}
+            </div>
+            <span className={styles.functionTitle}>{config.title}</span>
+          </div>
+          <div className={styles.functionStatus}>
+            {statusIcon}
+          </div>
+        </div>
+        
+        {/* Show function arguments if available */}
+        {Object.keys(args).length > 0 && (
+          <div className={styles.functionArgs}>
+                         {args.plan && (
+               <div className={styles.planContent}>
+                 <FileText size={14} style={{ color: config.color }} />
+                 <span>{String(args.plan)}</span>
+               </div>
+             )}
+             
+             {args.steps && Array.isArray(args.steps) && (
+               <div className={styles.stepsContent}>
+                 <div className={styles.stepsHeader}>
+                   <Lightbulb size={14} style={{ color: config.color }} />
+                   <span>Steps:</span>
+                 </div>
+                 <ol className={styles.stepsList}>
+                   {(args.steps as string[]).map((step: string, index: number) => (
+                     <li key={index} className={styles.stepItem}>
+                       <ArrowRight size={12} style={{ color: config.color }} />
+                       <span>{String(step)}</span>
+                     </li>
+                   ))}
+                 </ol>
+               </div>
+             )}
+             
+             {args.message && (
+               <div className={styles.notificationContent}>
+                 <span>{String(args.message)}</span>
+               </div>
+             )}
+             
+             {args.explanation && (
+               <div className={styles.codeInfo}>
+                 <div className={styles.codeExplanation}>
+                   <Play size={14} style={{ color: config.color }} />
+                   <span>{String(args.explanation)}</span>
+                 </div>
+               </div>
+             )}
+             
+             {args.summary && (
+               <div className={styles.taskSummary}>
+                 <div className={styles.summaryContent}>
+                   <CheckSquare size={14} style={{ color: config.color }} />
+                   <span>{String(args.summary)}</span>
+                 </div>
+                 {args.finalMessage && (
+                   <div className={styles.finalMessage}>
+                     <span>{String(args.finalMessage)}</span>
+                   </div>
+                 )}
+               </div>
+             )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const getStatusIcon = (status?: string) => {
@@ -492,6 +662,14 @@ export default function ChatInterface({
 
   const renderMessage = (msg: Message) => (
     <div key={msg.id} className={`${styles.message} ${styles[msg.role]}`}>
+      
+      {/* Show function call display if present */}
+      {msg.metadata?.functionCall && (
+        <FunctionCallDisplay 
+          functionCall={msg.metadata.functionCall} 
+          status={msg.metadata.status}
+        />
+      )}
       
       {msg.metadata?.plan && (
         <div className={styles.planDisplay}>
@@ -527,7 +705,7 @@ export default function ChatInterface({
       
       {agentState.isProcessing && msg.id === currentConversation?.messages[currentConversation.messages.length - 1]?.id && (
         <div className={styles.processingIndicator}>
-          <Loader2 className="animate-spin" size={14} />
+          <Loader2 className={styles.spinning} size={14} />
           <span>
             {agentState.currentFunction ? `Executing ${agentState.currentFunction}...` : 'Processing...'}
           </span>

@@ -23,7 +23,7 @@ interface ChatCompletionResponse {
 
 export class AIAgent {
   private apiKey: string | null = null;
-  private model: string = 'google/gemma-3-27b-it:free';
+  private model: string = 'google/gemini-2.0-flash-exp:free';
 
   constructor(apiKey?: string, model?: string) {
     if (apiKey) {
@@ -257,7 +257,7 @@ Please analyze the request, current code, and visual context to create a compreh
               type: 'json_schema',
               json_schema: responseSchema,
             },
-            temperature: 0.1,
+            temperature: 0.9,
             max_tokens: 4000,
           }),
         });
@@ -273,6 +273,8 @@ Please analyze the request, current code, and visual context to create a compreh
         if (!message) {
           throw new Error('No response from AI');
         }
+
+        console.log('Received message', message);
 
         // Add assistant message to conversation
         messages.push(message);
@@ -290,7 +292,25 @@ Please analyze the request, current code, and visual context to create a compreh
               actions = [parsed as { name: string; arguments: Record<string, unknown> }];
             }
           } catch {
-            // Not valid JSON, treat as plain content
+            // Try to parse raw function call format like "send_plan({...})"
+            const functionCallMatch = message.content.match(/(\w+)\(({[\s\S]*})\)/);
+            if (functionCallMatch) {
+              const [, functionName, argsString] = functionCallMatch;
+              try {
+                const parsedArgs = JSON.parse(argsString);
+                actions = [{
+                  name: functionName,
+                  arguments: parsedArgs
+                }];
+              } catch (parseError) {
+                console.warn('Failed to parse function call arguments:', parseError);
+              }
+            }
+            
+            // If still no actions, treat as plain content
+            if (actions.length === 0) {
+              // Not valid JSON or function call, treat as plain content
+            }
           }
         }
 
@@ -353,19 +373,6 @@ Please analyze the request, current code, and visual context to create a compreh
           type: 'warning'
         }
       });
-    }
-  }
-
-  // Utility method to test API key
-  async testApiKey(): Promise<boolean> {
-    if (!this.apiKey) return false;
-
-    try {
-      const response = await fetch(`/api/chat?apiKey=${encodeURIComponent(this.apiKey)}&model=${encodeURIComponent(this.model)}`);
-      const data = await response.json();
-      return data.valid === true;
-    } catch {
-      return false;
     }
   }
 }

@@ -3,7 +3,6 @@ import { Settings, Eye, EyeOff, Check, X, Key, DollarSign, Brain } from 'lucide-
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
 import { conversationStore } from '../lib/conversationStore';
-import { AIAgent } from '../lib/aiAgent';
 import styles from './SettingsPopover.module.css';
 
 interface SettingsPopoverProps {
@@ -15,7 +14,7 @@ interface SettingsPopoverProps {
 
 export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onModelChange }: SettingsPopoverProps) {
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('google/gemma-3-27b-it:free');
+  const [model, setModel] = useState('google/gemini-2.0-flash-exp:free');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isValid, setIsValid] = useState<boolean | null>(null);
@@ -52,8 +51,15 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
 
     setIsLoading(true);
     try {
-      const agent = new AIAgent(key);
-      const valid = await agent.testApiKey();
+      const response = await fetch('/api/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      
+      const result = await response.json();
+      const valid = response.ok && result.valid;
+      
       setIsValid(valid);
       
       if (valid) {
@@ -61,7 +67,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
       } else {
         toast.error('Invalid API key');
       }
-         } catch {
+    } catch {
        setIsValid(false);
        toast.error('Failed to validate API key');
      } finally {
@@ -216,11 +222,8 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                     
                     // Check if model is free
                     const freeModels = [
-                      'google/gemma-3-27b-it:free',
                       'qwen/qwen2.5-vl-72b-instruct:free',
-                      'mistralai/mistral-small-3.2-24b-instruct:free',
                       'google/gemini-2.0-flash-exp:free',
-                      'meta-llama/llama-4-maverick-17b-128e-instruct:free'
                     ];
                     
                     if (!freeModels.includes(selectedModel)) {
@@ -231,7 +234,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                   disabled={isLoading}
                 >
                   <optgroup label="Free Models">
-                    <option value="google/gemma-3-27b-it:free">Gemma 3 27B (Free)</option>
+                    <option value="google/gemini-2.0-flash-exp:free">Gemma 3 27B (Free)</option>
                     <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen 2.5 VL 72B (Free)</option>
                     <option value="mistralai/mistral-small-3.2-24b-instruct:free">Mistral Small 3.2 (Free)</option>
                     <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash Experimental (Free)</option>
