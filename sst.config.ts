@@ -11,14 +11,17 @@ export default $config({
     };
   },
   async run() {
+    console.log($app.stage);
     new sst.aws.Nextjs("Prompt3D", {
-      ...$app.stage === "production" && {
-        domain: {
-          name: "prompt3d.co",
-          redirects: ["www." + "prompt3d.co"],
-          aliases: ["c3d.cxmpute.cloud"],
-        },
-      },
+      domain: $app.stage === "production" 
+        ? {
+            name: "prompt3d.co",
+            redirects: ["www." + "prompt3d.co"],
+            aliases: ["c3d.cxmpute.cloud"],
+          }
+        : {
+            name: "dev.prompt3d.co",
+          },
     });
   },
 });

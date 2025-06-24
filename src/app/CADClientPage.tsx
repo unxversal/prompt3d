@@ -4,6 +4,7 @@
 // NOTE: This file contains the original implementation of the CAD page. It is imported dynamically from the server wrapper (page.tsx) with `ssr:false` so that Web Worker APIs are not evaluated during server-side rendering.
 
 import React, { useState, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
@@ -63,7 +64,7 @@ const geometries = syncGeometries(meshedShapes, []);
 export { geometries };`;
 
 // Chat component
-function ChatInterface({ state }: { state: 'panel' | 'overlay' }) {
+function ChatInterface({ state }: { state: 'panel' | 'overlay' | 'replace' }) {
   const [message, setMessage] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -82,9 +83,9 @@ function ChatInterface({ state }: { state: 'panel' | 'overlay' }) {
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask the AI agent to help with your CAD design..."
+            placeholder="Ask C3D to make your CAD design..."
             className={styles.chatTextarea}
-            rows={5}
+            rows={8}
           />
           <button type="submit" className={styles.chatSubmit}>
             <Send size={16} />
@@ -94,15 +95,41 @@ function ChatInterface({ state }: { state: 'panel' | 'overlay' }) {
     );
   }
 
+  if (state === 'replace') {
+    return (
+      <div className={styles.chatReplace}>
+        <div className={styles.chatMessages}>
+          <div className={styles.chatMessage}>
+            <div className={styles.chatMessageContent}>
+              Hi! I&apos;m C3D. Describe what you want to build and I&apos;ll generate the CAD object.
+            </div>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className={styles.chatInputForm}>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Ask C3D to make your CAD design..."
+            className={styles.chatInput}
+            rows={8}
+          />
+          <button type="submit" className={styles.chatSubmitButton}>
+            <Send size={16} />
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.chatPanel}>
-      <div className={styles.chatHeader}>
+      {/* <div className={styles.chatHeader}>
         <h3>AI Agent</h3>
-      </div>
+      </div> */}
       <div className={styles.chatMessages}>
         <div className={styles.chatMessage}>
           <div className={styles.chatMessageContent}>
-            Welcome! I can help you create CAD designs with code. Try asking me to create shapes, modify existing designs, or explain CAD concepts.
+            Hi! I&apos;m C3D. Describe what you want to build and I&apos;ll generate the CAD object.
           </div>
         </div>
       </div>
@@ -110,9 +137,9 @@ function ChatInterface({ state }: { state: 'panel' | 'overlay' }) {
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ask me to help with your CAD design..."
+          placeholder="Ask C3D to make your CAD design..."
           className={styles.chatInput}
-          rows={2}
+          rows={8}
         />
         <button type="submit" className={styles.chatSubmitButton}>
           <Send size={16} />
@@ -151,12 +178,16 @@ export default function CADClientPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay'>('hidden');
+  const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace'>('hidden');
 
     // Initialize OpenCascade once
   useEffect(() => {
     const initializeOpenCascade = async () => {
       if (isInitialized) return;
+
+      const toastId = toast.loading('Loading CAD engine...', {
+        description: 'Initializing C3D Engine.',
+      });
 
       try {
         console.log('Initializing OpenCascade...');
@@ -181,9 +212,20 @@ export default function CADClientPage() {
         console.log('OpenCascade setup complete');
         
         setIsInitialized(true);
+        
+        toast.success('C3D Engine Loaded!', {
+          id: toastId,
+          description: 'Ready to generate 3D models.',
+        });
       } catch (err) {
         console.error('Failed to initialize OpenCascade:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize OpenCascade');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to initialize OpenCascade';
+        setError(errorMessage);
+        
+        toast.error('Failed to load CAD engine', {
+          id: toastId,
+          description: errorMessage.slice(0, 80) + (errorMessage.length > 80 ? '...' : ''),
+        });
       }
     };
 
@@ -197,7 +239,7 @@ export default function CADClientPage() {
     setIsExecuting(true);
     setError(null);
     const toastId = toast.loading('Generating shapes...', {
-      description: 'Creating 3D models with replicad.',
+      description: 'Creating 3D models with C3D Engine.',
     });
 
     try {
@@ -277,7 +319,8 @@ export default function CADClientPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
-        if (isInitialized) {
+        // Disable Cmd+Enter when chat replaces the editor
+        if (isInitialized && chatState !== 'replace') {
           executeCode();
         }
       }
@@ -285,7 +328,7 @@ export default function CADClientPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isInitialized, executeCode]);
+  }, [isInitialized, executeCode, chatState]);
 
   // Set up global function for AI agents
   useEffect(() => {
@@ -321,6 +364,7 @@ export default function CADClientPage() {
     setChatState(prev => {
       if (prev === 'hidden') return 'panel';
       if (prev === 'panel') return 'overlay';
+      if (prev === 'overlay') return 'replace';
       return 'hidden';
     });
   };
@@ -328,7 +372,10 @@ export default function CADClientPage() {
   return (
     <div className={styles.pageContainer}>
       <header className={styles.header}>
-        <h1 className={styles.title}>C3D CAD</h1>
+        <div className={styles.titleContainer}>
+          <Image src="/6.png" alt="C3D Logo" className={styles.logo} width={32} height={32} />
+          <h1 className={styles.title}>C3D CAD</h1>
+        </div>
         <p className={styles.subtitle}>An agentic, code-first CAD editor.</p>
       </header>
 
@@ -342,18 +389,24 @@ export default function CADClientPage() {
           )}
         </div>
 
-        {/* Middle Panel - Code Editor with Sandpack */}
+        {/* Middle Panel - Code Editor with Sandpack OR Chat Replace */}
         <div className={`${styles.rightPanel} ${chatState === 'panel' ? styles.withChatPanel : ''}`}>
           <div className={styles.editorHeader}>
             <div className={styles.editorHeaderLeft}>
-              <button
-                className={styles.runButton}
-                onClick={executeCode}
-                disabled={isExecuting}
-              >
-                ▶ {isExecuting ? 'Running...' : 'Run'}
-              </button>
-              <span className={styles.shortcutHint}>⌘ + Enter</span>
+              {chatState === 'replace' ? (
+                <h3>AI Agent</h3>
+              ) : (
+                <>
+                  <button
+                    className={styles.runButton}
+                    onClick={executeCode}
+                    disabled={isExecuting}
+                  >
+                    ▶ {isExecuting ? 'Running...' : 'Run'}
+                  </button>
+                  <span className={styles.shortcutHint}>⌘ + Enter</span>
+                </>
+              )}
             </div>
             <div className={styles.editorHeaderRight}>
               <button
@@ -380,33 +433,38 @@ export default function CADClientPage() {
             </div>
           </div>
 
-          <div className={styles.sandpackContainer}>
-            <SandpackProvider
-              template="vanilla-ts"
-              theme={amethyst}
-              files={{
-                "/index.ts": {
-                  code: code,
-                },
-                "/package.json": {
-                  code: JSON.stringify({
-                    dependencies: {
-                      "replicad": "^0.19.0",
-                      "replicad-threejs-helper": "^0.19.0",
-                      "three": "^0.177.0"
-                    }
-                  }, null, 2)
-                }
-              }}
-              options={{
-                autorun: false,
-              }}
-            >
-              <SandpackLayout>
-                <CodeEditor onCodeChange={setCode} />
-              </SandpackLayout>
-            </SandpackProvider>
-          </div>
+          {/* Conditionally render chat replace or sandpack editor */}
+          {chatState === 'replace' ? (
+            <ChatInterface state="replace" />
+          ) : (
+            <div className={styles.sandpackContainer}>
+              <SandpackProvider
+                template="vanilla-ts"
+                theme={amethyst}
+                files={{
+                  "/index.ts": {
+                    code: code,
+                  },
+                  "/package.json": {
+                    code: JSON.stringify({
+                      dependencies: {
+                        "replicad": "^0.19.0",
+                        "replicad-threejs-helper": "^0.19.0",
+                        "three": "^0.177.0"
+                      }
+                    }, null, 2)
+                  }
+                }}
+                options={{
+                  autorun: false,
+                }}
+              >
+                <SandpackLayout>
+                  <CodeEditor onCodeChange={setCode} />
+                </SandpackLayout>
+              </SandpackProvider>
+            </div>
+          )}
           
           {/* Chat overlay - on top of code editor */}
           {chatState === 'overlay' && <ChatInterface state="overlay" />}
