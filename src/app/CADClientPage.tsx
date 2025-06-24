@@ -27,6 +27,14 @@ export interface WorkerShape {
   };
 }
 
+// Add interface for storing original replicad shapes
+export interface ReplicadShape {
+  name: string;
+  shape: any; // The actual replicad shape object
+  color?: string;
+  opacity?: number;
+}
+
 // Default example code showing replicad-threejs-helper usage
 const DEFAULT_CODE = `// Migrated to replicad-threejs-helper - No CSP Issues!
 // This code demonstrates the proper way to use replicad with Three.js
@@ -175,6 +183,7 @@ function CodeEditor({ onCodeChange }: { onCodeChange: (code: string) => void }) 
 export default function CADClientPage() {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [shapes, setShapes] = useState<WorkerShape[]>([]);
+  const [replicadShapes, setReplicadShapes] = useState<ReplicadShape[]>([]);  // Store original shapes for export
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -254,6 +263,22 @@ export default function CADClientPage() {
         .sketchOnPlane()
         .extrude(10);
 
+      // Store original replicad shapes for export
+      const originalShapes: ReplicadShape[] = [
+        {
+          name: 'Cylinder',
+          shape: cylinder,
+          color: '#667eea',
+          opacity: 1
+        },
+        {
+          name: 'Rounded Rectangle',
+          shape: roundedRect,
+          color: '#f093fb',
+          opacity: 1
+        }
+      ];
+
       // Mesh the shapes
       const meshedShapes = [
         {
@@ -291,6 +316,7 @@ export default function CADClientPage() {
       });
 
       setShapes(workerShapes);
+      setReplicadShapes(originalShapes);  // Store original shapes for export
       toast.success('Shapes generated successfully!', {
         id: toastId,
         description: `Generated ${workerShapes.length} shapes.`,
@@ -345,20 +371,98 @@ export default function CADClientPage() {
   }, [isInitialized, executeCode]);
 
   const handleExportSTL = useCallback(async () => {
-    if (shapes.length === 0) {
+    if (shapes.length === 0 || replicadShapes.length === 0) {
       toast.error('No shapes to export');
       return;
     }
-    toast.info('STL export would use replicad export functions directly');
-  }, [shapes.length]);
+
+    const toastId = toast.loading('Exporting STL file...', {
+      description: 'Creating STL file from C3D models.',
+    });
+
+    try {
+      // Use the first shape for STL export (STL format supports single objects better)
+      const primaryShape = replicadShapes[0];
+      
+      // Get STL blob from the replicad shape
+      const stlBlob = primaryShape.shape.blobSTL({
+        tolerance: 1e-3,
+        angularTolerance: 0.1
+      });
+
+      // Download the file
+      const url = URL.createObjectURL(stlBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `c3d-model-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.stl`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('STL file exported successfully!', {
+        id: toastId,
+        description: `Exported ${primaryShape.name} to STL format.`,
+      });
+    } catch (error) {
+      console.error('STL export failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error('Failed to export STL file', {
+        id: toastId,
+        description: errorMessage.slice(0, 80) + (errorMessage.length > 80 ? '...' : ''),
+      });
+    }
+  }, [shapes.length, replicadShapes]);
 
   const handleExportSTEP = useCallback(async () => {
-    if (shapes.length === 0) {
+    if (shapes.length === 0 || replicadShapes.length === 0) {
       toast.error('No shapes to export');
       return;
     }
-    toast.info('STEP export would use replicad export functions directly');
-  }, [shapes.length]);
+
+    const toastId = toast.loading('Exporting STEP file...', {
+      description: 'Creating STEP file from C3D models.',
+    });
+
+    try {
+      // Import replicad's export function
+      const { exportSTEP } = await import('replicad');
+      
+      // Convert replicad shapes to the format expected by exportSTEP
+      const shapesToExport = replicadShapes.map(({ shape, name }) => ({
+        shape,
+        name: name || 'Unnamed Shape'
+      }));
+
+      // Export to STEP with proper units
+      const stepBlob = exportSTEP(shapesToExport, {
+        unit: 'mm',
+        modelUnit: 'mm'
+      });
+
+      // Download the file
+      const url = URL.createObjectURL(stepBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `c3d-model-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.step`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('STEP file exported successfully!', {
+        id: toastId,
+        description: `Exported ${replicadShapes.length} shapes to STEP format.`,
+      });
+    } catch (error) {
+      console.error('STEP export failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error('Failed to export STEP file', {
+        id: toastId,
+        description: errorMessage.slice(0, 80) + (errorMessage.length > 80 ? '...' : ''),
+      });
+    }
+  }, [shapes.length, replicadShapes]);
 
   const toggleChat = () => {
     setChatState(prev => {
