@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
           }
         }
       } catch (error) {
-        console.warn('⚠️ Failed to copy WASM file:', error);
+        console.warn('Warning: Failed to copy WASM file:', error);
       }
     }
 

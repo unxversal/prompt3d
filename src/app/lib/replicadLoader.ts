@@ -22,7 +22,7 @@ export const initializeReplicad = async (): Promise<ReplicadModule> => {
 };
 
 const performInitialization = async (): Promise<ReplicadModule> => {
-  console.log('🔄 Replicad Loader: Starting initialization...');
+      console.log('[INIT] Replicad Loader: Starting initialization...');
 
   try {
     // Dynamic imports
@@ -53,7 +53,7 @@ const performInitialization = async (): Promise<ReplicadModule> => {
       },
     });
 
-    console.log('🔗 Replicad Loader: Setting up replicad with OpenCascade...');
+          console.log('[SETUP] Replicad Loader: Setting up replicad with OpenCascade...');
     
     // Set the OpenCascade instance in replicad
     replicad.setOC(OC);

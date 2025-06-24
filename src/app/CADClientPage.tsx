@@ -8,8 +8,13 @@ import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
-import { MessageCircle, Send } from 'lucide-react';
+import { MessageCircle, Play, Command } from 'lucide-react';
 import styles from './page.module.css';
+
+// Components
+import ChatInterface from './components/ChatInterface';
+import SettingsPopover, { SettingsButton } from './components/SettingsPopover';
+import { conversationStore } from './lib/conversationStore';
 
 // Components
 import ErrorDisplay from './components/ErrorDisplay';
@@ -71,91 +76,7 @@ const geometries = syncGeometries(meshedShapes, []);
 // Export for use in Three.js scene
 export { geometries };`;
 
-// Chat component
-function ChatInterface({ state }: { state: 'panel' | 'overlay' | 'replace' }) {
-  const [message, setMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-    
-    // TODO: Implement AI chat functionality
-    console.log('Message:', message);
-    setMessage('');
-  };
-
-  if (state === 'overlay') {
-    return (
-      <div className={styles.chatOverlay}>
-        <form onSubmit={handleSubmit} className={styles.chatForm}>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask C3D to make your CAD design..."
-            className={styles.chatTextarea}
-            rows={8}
-          />
-          <button type="submit" className={styles.chatSubmit}>
-            <Send size={16} />
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  if (state === 'replace') {
-    return (
-      <div className={styles.chatReplace}>
-        <div className={styles.chatMessages}>
-          <div className={styles.chatMessage}>
-            <div className={styles.chatMessageContent}>
-              Hi! I&apos;m C3D. Describe what you want to build and I&apos;ll generate the CAD object.
-            </div>
-          </div>
-        </div>
-        <form onSubmit={handleSubmit} className={styles.chatInputForm}>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask C3D to make your CAD design..."
-            className={styles.chatInput}
-            rows={8}
-          />
-          <button type="submit" className={styles.chatSubmitButton}>
-            <Send size={16} />
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.chatPanel}>
-      {/* <div className={styles.chatHeader}>
-        <h3>AI Agent</h3>
-      </div> */}
-      <div className={styles.chatMessages}>
-        <div className={styles.chatMessage}>
-          <div className={styles.chatMessageContent}>
-            Hi! I&apos;m C3D. Describe what you want to build and I&apos;ll generate the CAD object.
-          </div>
-        </div>
-      </div>
-      <form onSubmit={handleSubmit} className={styles.chatInputForm}>
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ask C3D to make your CAD design..."
-          className={styles.chatInput}
-          rows={8}
-        />
-        <button type="submit" className={styles.chatSubmitButton}>
-          <Send size={16} />
-        </button>
-      </form>
-    </div>
-  );
-}
 
 // Component to handle code changes within Sandpack context
 function CodeEditor({ onCodeChange }: { onCodeChange: (code: string) => void }) {
@@ -188,6 +109,27 @@ export default function CADClientPage() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace'>('hidden');
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [model, setModel] = useState<string>('google/gemini-2.0-flash-exp:free');
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Load API key and model on startup
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const savedApiKey = await conversationStore.getApiKey();
+        const savedModel = await conversationStore.getModel();
+        
+        if (savedApiKey) {
+          setApiKey(savedApiKey);
+        }
+        setModel(savedModel);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
     // Initialize OpenCascade once
   useEffect(() => {
@@ -338,7 +280,7 @@ export default function CADClientPage() {
     if (isInitialized && shapes.length === 0) {
       executeCode();
     }
-  }, [isInitialized, executeCode]);
+  }, [isInitialized, executeCode, shapes.length]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -370,49 +312,7 @@ export default function CADClientPage() {
     };
   }, [isInitialized, executeCode]);
 
-  const handleExportSTL = useCallback(async () => {
-    if (shapes.length === 0 || replicadShapes.length === 0) {
-      toast.error('No shapes to export');
-      return;
-    }
 
-    const toastId = toast.loading('Exporting STL file...', {
-      description: 'Creating STL file from C3D models.',
-    });
-
-    try {
-      // Use the first shape for STL export (STL format supports single objects better)
-      const primaryShape = replicadShapes[0];
-      
-      // Get STL blob from the replicad shape
-      const stlBlob = primaryShape.shape.blobSTL({
-        tolerance: 1e-3,
-        angularTolerance: 0.1
-      });
-
-      // Download the file
-      const url = URL.createObjectURL(stlBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `c3d-model-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.stl`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast.success('STL file exported successfully!', {
-        id: toastId,
-        description: `Exported ${primaryShape.name} to STL format.`,
-      });
-    } catch (error) {
-      console.error('STL export failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error('Failed to export STL file', {
-        id: toastId,
-        description: errorMessage.slice(0, 80) + (errorMessage.length > 80 ? '...' : ''),
-      });
-    }
-  }, [shapes.length, replicadShapes]);
 
   const handleExportSTEP = useCallback(async () => {
     if (shapes.length === 0 || replicadShapes.length === 0) {
@@ -473,13 +373,30 @@ export default function CADClientPage() {
     });
   };
 
+  const handleApiKeyRequired = () => {
+    setShowSettings(true);
+  };
+
+  const handleApiKeyChange = (newApiKey: string) => {
+    setApiKey(newApiKey);
+  };
+
+  const handleModelChange = (newModel: string) => {
+    setModel(newModel);
+  };
+
   return (
     <div className={styles.pageContainer}>
       <header className={styles.header}>
-        <div className={styles.titleContainer}>
-          <Image src="/6.png" alt="C3D Logo" className={styles.logo} width={32} height={32} />
+        <a 
+          href="https://cxmpute.cloud" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className={styles.titleContainer}
+        >
+          <Image src="/6.png" alt="C3D Logo" className={styles.logo} width={10} height={10} />
           <h1 className={styles.title}>C3D CAD</h1>
-        </div>
+        </a>
         <p className={styles.subtitle}>An agentic, code-first CAD editor.</p>
       </header>
 
@@ -506,20 +423,18 @@ export default function CADClientPage() {
                     onClick={executeCode}
                     disabled={isExecuting}
                   >
-                    ▶ {isExecuting ? 'Running...' : 'Run'}
+                    <Play size={14} style={{ marginRight: '4px' }} />
+                    {isExecuting ? 'Running...' : 'Run'}
                   </button>
-                  <span className={styles.shortcutHint}>⌘ + Enter</span>
+                  <span className={styles.shortcutHint}>
+                                          <span className={styles.commandKey}><Command size={12} /></span>
+                    <span className={styles.plusKey}>+</span>
+                    <span className={styles.enterKey}>Enter</span>
+                  </span>
                 </>
               )}
             </div>
             <div className={styles.editorHeaderRight}>
-              <button
-                className={styles.exportButton}
-                onClick={handleExportSTL}
-                disabled={shapes.length === 0}
-              >
-                Export STL
-              </button>
               <button
                 className={styles.exportButton}
                 onClick={handleExportSTEP}
@@ -527,6 +442,7 @@ export default function CADClientPage() {
               >
                 Export STEP
               </button>
+              <SettingsButton onClick={() => setShowSettings(true)} />
               <button
                 className={styles.aiButton}
                 onClick={toggleChat}
@@ -539,7 +455,14 @@ export default function CADClientPage() {
 
           {/* Conditionally render chat replace or sandpack editor */}
           {chatState === 'replace' ? (
-            <ChatInterface state="replace" />
+            <ChatInterface 
+              state="replace" 
+              currentCode={code}
+              onCodeChange={setCode}
+              apiKey={apiKey}
+              model={model}
+              onApiKeyRequired={handleApiKeyRequired}
+            />
           ) : (
             <div className={styles.sandpackContainer}>
               <SandpackProvider
@@ -571,14 +494,38 @@ export default function CADClientPage() {
           )}
           
           {/* Chat overlay - on top of code editor */}
-          {chatState === 'overlay' && <ChatInterface state="overlay" />}
+          {chatState === 'overlay' && (
+            <ChatInterface 
+              state="overlay"
+              currentCode={code}
+              onCodeChange={setCode}
+              apiKey={apiKey}
+              model={model}
+              onApiKeyRequired={handleApiKeyRequired}
+            />
+          )}
         </div>
 
         {/* Right Panel - Chat (when in panel mode) */}
-        {chatState === 'panel' && <ChatInterface state="panel" />}
+        {chatState === 'panel' && (
+          <ChatInterface 
+            state="panel"
+            currentCode={code}
+            onCodeChange={setCode}
+            apiKey={apiKey}
+            model={model}
+            onApiKeyRequired={handleApiKeyRequired}
+          />
+        )}
       </div>
 
-
+      {/* Settings Popover */}
+      <SettingsPopover
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onApiKeyChange={handleApiKeyChange}
+        onModelChange={handleModelChange}
+      />
     </div>
   );
 }

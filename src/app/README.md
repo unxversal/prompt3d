@@ -6,7 +6,7 @@ A modern, minimalist in-browser CAD tool built with React, Three.js, and Replica
 
 ### Auto-run vs Manual Run
 - **Auto-run**: Code executes automatically 500ms after you stop typing
-- **Manual run**: Click the "▶ Run" button or press `Cmd+Enter` (Mac) / `Ctrl+Enter` (Windows/Linux)
+- **Manual run**: Click the "Run" button or press `Cmd+Enter` (Mac) / `Ctrl+Enter` (Windows/Linux)
 - **Execution feedback**: Real-time notifications via toast messages
 
 ### Keyboard Shortcuts
@@ -25,10 +25,10 @@ The buttons over the CAD viewer provide essential navigation and utility functio
 
 | Button | Icon | Function | Description |
 |--------|------|----------|-------------|
-| Reset View | 🏠 | Reset camera position | Returns camera to default isometric view (50, 50, 50) |
-| Fit to View | 📐 | Frame all objects | Automatically adjusts camera to fit all shapes in view |
-| Wireframe | 🔗 | Toggle wireframe mode | Switches between solid and wireframe rendering |
-| Screenshot | 📸 | Capture image | Downloads a PNG screenshot of the current view |
+| Reset View | Home | Reset camera position | Returns camera to default isometric view (50, 50, 50) |
+| Fit to View | Maximize2 | Frame all objects | Automatically adjusts camera to fit all shapes in view |
+| Wireframe | Grid3X3 | Toggle wireframe mode | Switches between solid and wireframe rendering |
+| Screenshot | Camera | Capture image | Downloads a PNG screenshot of the current view |
 
 ## Export Options
 - **Export STL**: For 3D printing (coming soon)

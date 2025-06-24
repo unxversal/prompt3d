@@ -53,7 +53,7 @@ export class CADEngine {
         throw new Error('CAD Engine requires browser environment');
       }
       
-      console.log('🔄 CAD Engine: Starting initialization...');
+      console.log('[INIT] CAD Engine: Starting initialization...');
       console.log('🌐 CAD Engine: Browser environment confirmed');
       
       // Use the replicad loader
@@ -64,21 +64,21 @@ export class CADEngine {
       this.fallbackMode = false;
       
       console.log('🎉 CAD Engine: Full initialization completed successfully!');
-      console.log('📊 CAD Engine Status:', {
+              console.log('[STATUS] CAD Engine Status:', {
         initialized: this.initialized,
         fallbackMode: this.fallbackMode,
         hasReplicad: !!this.replicad
       });
     } catch (error) {
-      console.warn('⚠️  CAD Engine: Full initialization failed, enabling fallback mode');
+              console.warn('[WARN] CAD Engine: Full initialization failed, enabling fallback mode');
       console.error('💥 CAD Engine Error Details:', error);
       
       // Enable fallback mode - use simple geometries
       this.fallbackMode = true;
       this.initialized = true;
       
-      console.log('🔄 CAD Engine: Fallback mode enabled');
-      console.log('📊 CAD Engine Status (Fallback):', {
+              console.log('[FALLBACK] CAD Engine: Fallback mode enabled');
+        console.log('[STATUS] CAD Engine Status (Fallback):', {
         initialized: this.initialized,
         fallbackMode: this.fallbackMode,
         hasReplicad: false,

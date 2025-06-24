@@ -23,7 +23,7 @@ export function useCADInitialization() {
         return;
       }
 
-      console.log('🚀 Starting CAD engine initialization...');
+      console.log('[INIT] Starting CAD engine initialization...');
       setState(prev => ({ ...prev, isInitializing: true, error: null }));
       
       // Show initialization toast

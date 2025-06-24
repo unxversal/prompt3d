@@ -1,0 +1,153 @@
+import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { Conversation, Message } from '../types/ai';
+
+interface ConversationDB extends DBSchema {
+  conversations: {
+    key: string;
+    value: Conversation;
+    indexes: { 'by-date': Date };
+  };
+  settings: {
+    key: string;
+    value: {
+      key: string;
+      apiKey?: string;
+      model?: string;
+      theme?: string;
+      collapsed?: boolean;
+    };
+  };
+}
+
+class ConversationStore {
+  private db: IDBPDatabase<ConversationDB> | null = null;
+
+  async init(): Promise<void> {
+    if (this.db) return;
+
+    this.db = await openDB<ConversationDB>('c3d-conversations', 1, {
+      upgrade(db) {
+        // Create conversations store
+        const conversationStore = db.createObjectStore('conversations', {
+          keyPath: 'id',
+        });
+        conversationStore.createIndex('by-date', 'updatedAt');
+
+        // Create settings store
+        db.createObjectStore('settings', {
+          keyPath: 'key',
+        });
+      },
+    });
+  }
+
+  async saveConversation(conversation: Conversation): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.put('conversations', conversation);
+  }
+
+  async getConversation(id: string): Promise<Conversation | undefined> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return await this.db.get('conversations', id);
+  }
+
+  async getAllConversations(): Promise<Conversation[]> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return await this.db.getAllFromIndex('conversations', 'by-date');
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.delete('conversations', id);
+  }
+
+  async addMessageToConversation(conversationId: string, message: Message): Promise<void> {
+    const conversation = await this.getConversation(conversationId);
+    if (!conversation) throw new Error('Conversation not found');
+
+    conversation.messages.push(message);
+    conversation.updatedAt = new Date();
+    
+    await this.saveConversation(conversation);
+  }
+
+  async updateMessage(conversationId: string, messageId: string, updates: Partial<Message>): Promise<void> {
+    const conversation = await this.getConversation(conversationId);
+    if (!conversation) throw new Error('Conversation not found');
+
+    const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) throw new Error('Message not found');
+
+    conversation.messages[messageIndex] = {
+      ...conversation.messages[messageIndex],
+      ...updates,
+    };
+    conversation.updatedAt = new Date();
+    
+    await this.saveConversation(conversation);
+  }
+
+  // Settings management
+  async getApiKey(): Promise<string | undefined> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const settings = await this.db.get('settings', 'api-key');
+    return settings?.apiKey;
+  }
+
+  async setApiKey(apiKey: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.put('settings', { key: 'api-key', apiKey });
+  }
+
+  async getModel(): Promise<string> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const settings = await this.db.get('settings', 'model-settings');
+    return settings?.model || 'google/gemini-2.0-flash-exp:free'; // Default model
+  }
+
+  async setModel(model: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.put('settings', { key: 'model-settings', model });
+  }
+
+  async getSettings(): Promise<{ collapsed?: boolean; theme?: string }> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const settings = await this.db.get('settings', 'ui-settings');
+    return {
+      collapsed: settings?.collapsed,
+      theme: settings?.theme,
+    };
+  }
+
+  async updateSettings(settings: { collapsed?: boolean; theme?: string }): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const existing = await this.db.get('settings', 'ui-settings');
+    await this.db.put('settings', {
+      key: 'ui-settings',
+      ...existing,
+      ...settings,
+    });
+  }
+}
+
+export const conversationStore = new ConversationStore(); 

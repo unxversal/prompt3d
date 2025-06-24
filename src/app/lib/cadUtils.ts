@@ -131,7 +131,7 @@ export class CADUtils {
    */
   static async initializeEngine(): Promise<CADUtilsResult> {
     try {
-      console.log('🔄 CAD Utils: Initializing engine...');
+      console.log('[INIT] CAD Utils: Initializing engine...');
       showToast.engineStatus('initializing');
       
       await cadEngine.initialize();
@@ -173,7 +173,7 @@ export class CADUtils {
    */
   static async createBox(width: number, height: number, depth: number): Promise<CADUtilsResult> {
     try {
-      console.log(`🔧 CAD Utils: Creating box ${width}×${height}×${depth}`);
+      console.log(`[CREATE] CAD Utils: Creating box ${width}×${height}×${depth}`);
       const toastId = showToast.operationLoading('Creating box');
       
       const shape = await cadEngine.createBox(width, height, depth);
@@ -204,7 +204,7 @@ export class CADUtils {
    */
   static async createCylinder(params: CylinderParams): Promise<CADUtilsResult> {
     try {
-      console.log(`🔧 CAD Utils: Creating cylinder r=${params.radius}, h=${params.height}`);
+              console.log(`[CREATE] CAD Utils: Creating cylinder r=${params.radius}, h=${params.height}`);
       const toastId = showToast.operationLoading('Creating cylinder');
       
       const shape = await cadEngine.createCylinder(params.radius, params.height);
@@ -254,7 +254,7 @@ export class CADUtils {
    */
   static async createSphere(params: SphereParams): Promise<CADUtilsResult> {
     try {
-      console.log(`🔧 CAD Utils: Creating sphere r=${params.radius}`);
+              console.log(`[CREATE] CAD Utils: Creating sphere r=${params.radius}`);
       const toastId = showToast.operationLoading('Creating sphere');
       
       const shape = await cadEngine.createSphere(params.radius);
@@ -356,7 +356,7 @@ export class CADUtils {
    */
   static async union(shape1Id: string, shape2Id: string): Promise<CADUtilsResult> {
     try {
-      console.log(`🔧 CAD Utils: Union operation on shapes ${shape1Id} and ${shape2Id}`);
+              console.log(`[OPERATION] CAD Utils: Union operation on shapes ${shape1Id} and ${shape2Id}`);
       const toastId = showToast.operationLoading('Union operation');
       
       const shape = await cadEngine.unionShapes(shape1Id, shape2Id);
@@ -387,7 +387,7 @@ export class CADUtils {
    */
   static async subtract(baseShapeId: string, toolShapeId: string): Promise<CADUtilsResult> {
     try {
-      console.log(`🔧 CAD Utils: Subtract operation: ${baseShapeId} - ${toolShapeId}`);
+              console.log(`[OPERATION] CAD Utils: Subtract operation: ${baseShapeId} - ${toolShapeId}`);
       const toastId = showToast.operationLoading('Subtract operation');
       
       const shape = await cadEngine.subtractShapes(baseShapeId, toolShapeId);
@@ -716,7 +716,7 @@ export class CADUtils {
    */
   static deleteShape(shapeId: string): CADUtilsResult {
     try {
-      console.log(`🗑️ CAD Utils: Deleting shape ${shapeId}`);
+      console.log(`[DELETE] CAD Utils: Deleting shape ${shapeId}`);
       
       cadEngine.deleteShape(shapeId);
       
@@ -755,7 +755,7 @@ export class CADUtils {
    */
   static clearAll(): CADUtilsResult {
     try {
-      console.log('🗑️ CAD Utils: Clearing all shapes');
+      console.log('[DELETE] CAD Utils: Clearing all shapes');
       
       const shapeCount = cadEngine.getAllShapes().length;
       cadEngine.clearAllShapes();
@@ -889,7 +889,7 @@ export class CADUtils {
    */
   static async analyzeMesh(shapeId: string): Promise<CADUtilsResult> {
     try {
-      console.log(`🔍 CAD Utils: Analyzing mesh for shape ${shapeId}`);
+              console.log(`[ANALYZE] CAD Utils: Analyzing mesh for shape ${shapeId}`);
       const toastId = showToast.operationLoading('Mesh analysis');
       
       const shape = cadEngine.getShape(shapeId);
@@ -1063,7 +1063,7 @@ export class CADUtils {
    */
   static async startSketch(plane: 'XY' | 'XZ' | 'YZ' = 'XY', offset: number = 0): Promise<CADUtilsResult> {
     try {
-      console.log(`✏️ CAD Utils: Starting sketch on ${plane} plane`);
+              console.log(`[SKETCH] CAD Utils: Starting sketch on ${plane} plane`);
       const toastId = showToast.operationLoading('Starting sketch');
       
       const sketchId = await cadEngine.createSketch(plane, offset);
