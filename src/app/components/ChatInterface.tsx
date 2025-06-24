@@ -537,7 +537,7 @@ export default function ChatInterface({
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask C3D to create or modify your CAD design..."
             className={styles.chatTextarea}
-            rows={8}
+            rows={7}
             disabled={agentState.isProcessing}
           />
           <button 
@@ -572,7 +572,7 @@ export default function ChatInterface({
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Ask C3D to create or modify your CAD design..."
         className={styles.chatInput}
-        rows={8}
+        rows={7}
         disabled={agentState.isProcessing}
       />
       <button 

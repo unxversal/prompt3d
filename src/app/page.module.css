@@ -563,10 +563,16 @@
 }
 
 /* Info Panel */
-.infoPanel {
+.infoPanelContainer {
   position: absolute;
   bottom: 1rem;
   left: 1rem;
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+}
+
+.infoPanel {
   background: rgba(10, 10, 10, 0.9);
   border: 1px solid #333333;
   padding: 0.5rem 0.75rem;
@@ -575,6 +581,26 @@
   font-size: 0.75rem;
   font-weight: 300;
   backdrop-filter: blur(10px);
+}
+
+.infoPanelLink {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.infoPanelLink:hover {
+  text-decoration: none;
+}
+
+.xLogo {
+  filter: invert(1);
+}
+
+.xInfoPanel {
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-bottom: 6px;
 }
 
 /* Tooltip Styles */

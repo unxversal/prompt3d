@@ -11,6 +11,7 @@ import {
   Camera, 
   Loader2
 } from 'lucide-react';
+import Image from 'next/image';
 // WorkerShape interface moved to CADClientPage
 interface WorkerShape {
   name?: string;
@@ -336,8 +337,18 @@ export default function CADViewer({ shapes }: CADViewerProps) {
 
       {/* Info Panel */}
       {shapes.length > 0 && (
-        <div className={styles.infoPanel}>
-          {shapes.length} shape{shapes.length !== 1 ? 's' : ''} loaded
+        <div className={styles.infoPanelContainer}>
+          <div className={styles.infoPanel}>
+            {shapes.length} shape{shapes.length !== 1 ? 's' : ''} loaded
+          </div>
+           <div className={styles.infoPanel}>
+            Made with ❤️ by <a href="https://cxmpute.cloud" target="_blank" rel="noopener noreferrer" className={styles.infoPanelLink}>cxmpute.cloud</a>
+          </div>
+          <div className={`${styles.infoPanel} ${styles.xInfoPanel}`}>
+            <a href="https://x.com/joshuaokolo_" target="_blank" rel="noopener noreferrer">
+              <Image src="/x.webp" alt="X Logo" width={16} height={16} className={styles.xLogo} />
+            </a>
+          </div>
         </div>
       )}
     </div>
