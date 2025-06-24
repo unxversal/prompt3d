@@ -108,6 +108,70 @@ function CameraController({ shapes, autoFit }: { shapes: WorkerShape[], autoFit:
     controlsRef.current.update();
     }
   }, [camera, scene]);
+
+  // Function to smoothly move camera to specific view
+  const moveToView = React.useCallback(async (
+    position: [number, number, number], 
+    target: [number, number, number]
+  ): Promise<void> => {
+    return new Promise((resolve) => {
+      const startPos = camera.position.clone();
+      const endPos = new THREE.Vector3(...position);
+      const startTarget = controlsRef.current?.target.clone() || new THREE.Vector3(0, 0, 0);
+      const endTarget = new THREE.Vector3(...target);
+      
+      let progress = 0;
+      const duration = 1000; // 1 second animation
+      const startTime = Date.now();
+      
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        progress = Math.min(elapsed / duration, 1);
+        
+        // Smooth easing function
+        const easeProgress = progress < 0.5 
+          ? 2 * progress * progress 
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        
+        // Interpolate position
+        camera.position.lerpVectors(startPos, endPos, easeProgress);
+        
+        // Interpolate target
+        if (controlsRef.current) {
+          const currentTarget = new THREE.Vector3().lerpVectors(startTarget, endTarget, easeProgress);
+          controlsRef.current.target.copy(currentTarget);
+          controlsRef.current.update();
+        }
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          resolve();
+        }
+      };
+      
+      animate();
+    });
+  }, [camera]);
+  
+  // Expose camera controller globally for screenshot capture
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const controller = {
+        camera,
+        controls: controlsRef.current,
+        moveToView,
+        fitToView
+      };
+      (window as { __CAD_CAMERA_CONTROLLER__?: typeof controller }).__CAD_CAMERA_CONTROLLER__ = controller;
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as { __CAD_CAMERA_CONTROLLER__?: unknown }).__CAD_CAMERA_CONTROLLER__;
+      }
+    };
+  }, [camera, moveToView, fitToView]);
   
   React.useEffect(() => {
     if (autoFit && shapes.length > 0) {

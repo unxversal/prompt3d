@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { 
+  Send, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  Loader2, 
+  Code,
+  Target,
+  Edit3,
+  RefreshCw
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
 import { conversationStore } from '../lib/conversationStore';
@@ -14,6 +24,7 @@ interface ChatInterfaceProps {
   apiKey: string | null;
   model: string;
   onApiKeyRequired: () => void;
+  onCodeExecute?: () => void; // Added for code execution integration
 }
 
 export default function ChatInterface({ 
@@ -22,13 +33,15 @@ export default function ChatInterface({
   onCodeChange, 
   apiKey,
   model,
-  onApiKeyRequired 
+  onApiKeyRequired,
+  onCodeExecute
 }: ChatInterfaceProps) {
   const [message, setMessage] = useState('');
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [agentState, setAgentState] = useState<AIAgentState>({
     isProcessing: false,
-    isCollapsed: state !== 'replace'
+    isCollapsed: state !== 'replace',
+    plan: undefined
   });
   const [agent, setAgent] = useState<AIAgent | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,11 +81,11 @@ export default function ChatInterface({
       } else {
         const newConversation: Conversation = {
           id: generateId(),
-          title: 'New Conversation',
+          title: 'New CAD Session',
           messages: [{
             id: generateId(),
             role: 'assistant',
-            content: "Hi! I'm C3D, your AI CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll generate the code for you.",
+            content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll analyze your request, create a plan, and generate the code for you.",
             timestamp: new Date(),
           }],
           createdAt: new Date(),
@@ -95,7 +108,9 @@ export default function ChatInterface({
     // Check if API key is set
     if (!apiKey || !agent) {
       onApiKeyRequired();
-      toast.error('Please set your OpenRouter API key to continue');
+      toast.error('Please set your OpenRouter API key to continue', {
+        description: 'API key is required for AI assistance'
+      });
       return;
     }
 
@@ -126,7 +141,7 @@ export default function ChatInterface({
         {
           userPrompt: userMessage.content,
           currentCode,
-          screenshots: [], // TODO: Implement screenshot capture
+          screenshots: [], // Screenshots are captured internally now
           conversationHistory: currentConversation?.messages.slice(-10) || [] // Last 10 messages for context
         },
         handleFunctionCall
@@ -134,7 +149,10 @@ export default function ChatInterface({
     } catch (error) {
       console.error('AI processing error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error(`AI Error: ${errorMessage}`);
+      
+      if (agentState.isCollapsed) {
+        toast.error(`AI Error: ${errorMessage}`);
+      }
       
       // Add error message to conversation
       await addMessageToConversation({
@@ -188,33 +206,35 @@ export default function ChatInterface({
       isCollapsedMessage?: boolean;
     };
 
-    if (agentState.isCollapsed && isCollapsedMessage) {
-      // Show toast for collapsed mode
+    if (agentState.isCollapsed || isCollapsedMessage) {
+      // Generate short message for toast in collapsed mode
+      const shortMessage = msg.length > 60 ? msg.substring(0, 57) + '...' : msg;
+      
       switch (type) {
         case 'success':
-          toast.success(msg);
+          toast.success(shortMessage, { description: 'C3D Assistant' });
           break;
         case 'warning':
-          toast.warning(msg);
+          toast.warning(shortMessage, { description: 'C3D Assistant' });
           break;
         case 'error':
-          toast.error(msg);
+          toast.error(shortMessage, { description: 'C3D Assistant' });
           break;
         default:
-          toast.info(msg);
+          toast.info(shortMessage, { description: 'C3D Assistant' });
       }
-    } else {
-      // Add to conversation
-      await addMessageToConversation({
-        id: generateId(),
-        role: 'assistant',
-        content: msg,
-        timestamp: new Date(),
-        metadata: { status: 'completed' }
-      });
     }
 
-    return 'Notification sent';
+         // Always add to conversation for full mode
+     await addMessageToConversation({
+       id: generateId(),
+       role: 'assistant',
+       content: msg,
+       timestamp: new Date(),
+       metadata: { status: type === 'info' || type === 'warning' || type === 'success' ? 'completed' : type }
+     });
+
+    return 'Message sent to user';
   };
 
   const handleWriteCode = async (call: FunctionCall): Promise<string> => {
@@ -223,20 +243,33 @@ export default function ChatInterface({
       explanation?: string;
     };
 
+    // Update the code in the editor
     onCodeChange(code);
     
-    const message = explanation 
-      ? `I've updated the code. ${explanation}`
-      : 'I\'ve updated the code with your requested changes.';
-      
+    // Execute the code automatically if handler is provided
+    if (onCodeExecute) {
+      setTimeout(() => {
+        onCodeExecute();
+      }, 100);
+    }
+
+    // Notification for collapsed mode
+    if (agentState.isCollapsed) {
+      toast.success('Code updated', {
+        description: explanation || 'New code generated and applied',
+        icon: <Code size={16} />
+      });
+    }
+
+    // Add to conversation
     await addMessageToConversation({
       id: generateId(),
       role: 'assistant',
-      content: message,
+      content: `✅ **Code Updated**\n\n${explanation || 'I\'ve generated new code for your model.'}\n\n\`\`\`typescript\n${code.slice(0, 200)}${code.length > 200 ? '...' : ''}\n\`\`\``,
       timestamp: new Date(),
       metadata: { 
-        functionCall: call,
-        status: 'completed'
+        status: 'completed' as const,
+        functionCall: call
       }
     });
 
@@ -254,24 +287,44 @@ export default function ChatInterface({
       const updatedCode = applyCodeDiff(currentCode, oldCode, newCode);
       onCodeChange(updatedCode);
       
-      const message = explanation 
-        ? `I've applied a code update. ${explanation}`
-        : 'I\'ve applied the requested code changes.';
-        
+      // Execute the code automatically if handler is provided
+      if (onCodeExecute) {
+        setTimeout(() => {
+          onCodeExecute();
+        }, 100);
+      }
+
+      // Notification for collapsed mode
+      if (agentState.isCollapsed) {
+        toast.success('Code updated', {
+          description: explanation || 'Code modifications applied',
+          icon: <Edit3 size={16} />
+        });
+      }
+
+      // Add to conversation
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
-        content: message,
+        content: `🔧 **Code Modified**\n\n${explanation || 'I\'ve updated your code with targeted changes.'}\n\n**Changes:**\n\`\`\`diff\n- ${oldCode.slice(0, 100)}${oldCode.length > 100 ? '...' : ''}\n+ ${newCode.slice(0, 100)}${newCode.length > 100 ? '...' : ''}\n\`\`\``,
         timestamp: new Date(),
         metadata: { 
-          functionCall: call,
-          status: 'completed'
+          status: 'completed' as const,
+          functionCall: call
         }
       });
 
       return 'Code diff applied successfully';
     } catch (error) {
-      throw new Error(`Failed to apply code diff: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to apply code diff';
+      
+      if (agentState.isCollapsed) {
+        toast.error('Code update failed', {
+          description: errorMessage
+        });
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -281,21 +334,36 @@ export default function ChatInterface({
       steps?: string[];
     };
 
+    // Update agent state with plan
     setAgentState(prev => ({ ...prev, plan }));
 
-    let planMessage = `**Plan:** ${plan}`;
-    if (steps && steps.length > 0) {
-      planMessage += '\n\n**Steps:**\n' + steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
+    // Notification for collapsed mode
+    if (agentState.isCollapsed) {
+      toast.info('Plan created', {
+        description: 'AI has created a plan for your request',
+        icon: <Target size={16} />
+      });
     }
 
+    // Format plan with steps
+    let formattedPlan = `📋 **Implementation Plan**\n\n${plan}`;
+    
+    if (steps && steps.length > 0) {
+      formattedPlan += '\n\n**Steps:**\n' + steps.map((step, index) => 
+        `${index + 1}. ${step}`
+      ).join('\n');
+    }
+
+    // Add to conversation
     await addMessageToConversation({
       id: generateId(),
       role: 'assistant',
-      content: planMessage,
+      content: formattedPlan,
       timestamp: new Date(),
       metadata: { 
+        status: 'completed' as const,
         plan,
-        status: 'completed'
+        functionCall: call
       }
     });
 
@@ -308,20 +376,31 @@ export default function ChatInterface({
       reason: string;
     };
 
+    // Update agent state with new plan
     setAgentState(prev => ({ ...prev, plan: updatedPlan }));
 
+    // Notification for collapsed mode
+    if (agentState.isCollapsed) {
+      toast.info('Plan updated', {
+        description: reason,
+        icon: <RefreshCw size={16} />
+      });
+    }
+
+    // Add to conversation
     await addMessageToConversation({
       id: generateId(),
       role: 'assistant',
-      content: `**Plan Update:** ${updatedPlan}\n\n**Reason:** ${reason}`,
+      content: `🔄 **Plan Updated**\n\n**Reason:** ${reason}\n\n**Updated Plan:**\n${updatedPlan}`,
       timestamp: new Date(),
       metadata: { 
+        status: 'completed' as const,
         plan: updatedPlan,
-        status: 'completed'
+        functionCall: call
       }
     });
 
-    return 'Plan updated';
+    return 'Plan updated successfully';
   };
 
   const handleCompleteTask = async (call: FunctionCall): Promise<string> => {
@@ -330,19 +409,31 @@ export default function ChatInterface({
       finalMessage: string;
     };
 
+    // Clear current plan and function
+    setAgentState(prev => ({ ...prev, plan: undefined, currentFunction: undefined }));
+
+    // Notification for collapsed mode
+    if (agentState.isCollapsed) {
+      toast.success('Task completed', {
+        description: 'AI has finished working on your request',
+        icon: <CheckCircle size={16} />
+      });
+    }
+
+    // Add completion message to conversation
     await addMessageToConversation({
       id: generateId(),
       role: 'assistant',
-      content: finalMessage,
+      content: `✅ **Task Completed**\n\n**Summary:** ${summary}\n\n${finalMessage}`,
       timestamp: new Date(),
       metadata: { 
+        status: 'completed' as const,
         summary,
-        status: 'completed'
+        functionCall: call
       }
     });
 
-    setAgentState(prev => ({ ...prev, plan: undefined }));
-    return 'Task completed';
+    return 'Task completed successfully';
   };
 
   const addMessageToConversation = async (message: Message): Promise<void> => {
@@ -363,26 +454,74 @@ export default function ChatInterface({
   };
 
   const formatMessage = (content: string): string => {
-    // Simple markdown-like formatting
+    // Convert markdown-like formatting for better display
     return content
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br/>');
+      .replace(/`(.*?)`/g, '<code>$1</code>');
+  };
+
+  const getStatusIcon = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle size={14} className={styles.statusIcon} style={{ color: '#22c55e' }} />;
+      case 'error':
+        return <AlertCircle size={14} className={styles.statusIcon} style={{ color: '#ef4444' }} />;
+      case 'pending':
+        return <Clock size={14} className={styles.statusIcon} style={{ color: '#f59e0b' }} />;
+      default:
+        return null;
+    }
+  };
+
+  const getFunctionIcon = (functionName?: string) => {
+    switch (functionName) {
+      case 'send_plan':
+      case 'update_plan':
+        return <Target size={14} className={styles.functionIcon} />;
+      case 'write_code':
+        return <Code size={14} className={styles.functionIcon} />;
+      case 'update_code':
+        return <Edit3 size={14} className={styles.functionIcon} />;
+      case 'complete_task':
+        return <CheckCircle size={14} className={styles.functionIcon} />;
+      default:
+        return null;
+    }
   };
 
   const renderMessage = (msg: Message) => (
     <div key={msg.id} className={`${styles.message} ${styles[msg.role]}`}>
-      <div 
-        className={styles.messageContent}
-        dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-        title={msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      />
-      {msg.metadata?.status && (
-        <div className={`${styles.messageStatus} ${styles[msg.metadata.status]}`}>
-          {msg.metadata.status === 'pending' && <Clock size={12} />}
-          {msg.metadata.status === 'completed' && <CheckCircle size={12} />}
-          {msg.metadata.status === 'error' && <AlertCircle size={12} />}
+      
+      {msg.metadata?.plan && (
+        <div className={styles.planDisplay}>
+          <div className={styles.planHeader}>
+            <Target size={16} />
+            <span>Current Plan</span>
+          </div>
+          <div className={styles.planContent}>
+            {msg.metadata.plan}
+          </div>
+        </div>
+      )}
+      
+      <div className={styles.messageContent}>
+        <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
+        <div className={styles.messageInfo}>
+            <span className={styles.messageTimestamp}>
+              {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {msg.metadata?.functionCall && getFunctionIcon(msg.metadata.functionCall.name)}
+            {getStatusIcon(msg.metadata?.status)}
+        </div>
+      </div>
+      
+      {agentState.isProcessing && msg.id === currentConversation?.messages[currentConversation.messages.length - 1]?.id && (
+        <div className={styles.processingIndicator}>
+          <Loader2 className="animate-spin" size={14} />
+          <span>
+            {agentState.currentFunction ? `Executing ${agentState.currentFunction}...` : 'Processing...'}
+          </span>
         </div>
       )}
     </div>
@@ -433,7 +572,7 @@ export default function ChatInterface({
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Ask C3D to create or modify your CAD design..."
         className={styles.chatInput}
-        rows={3}
+        rows={8}
         disabled={agentState.isProcessing}
       />
       <button 

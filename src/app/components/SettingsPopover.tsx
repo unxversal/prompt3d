@@ -239,6 +239,13 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                     <option value="google/gemini-2.5-flash-lite-preview-06-17">Gemini 2.5 Flash Lite (Paid)</option>
                     <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (Paid)</option>
                     <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (Paid)</option>
+                    <option value="google/gemini-2.5-pro-preview">Gemini 2.5 Pro Preview (Paid)</option>
+                    <option value="anthropic/claude-sonnet-4">Claude Sonnet 4 (Paid)</option>
+                    <option value="anthropic/claude-opus-4">Claude Opus 4 (Paid)</option>
+                    <option value="anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet (Paid)</option>
+                    <option value="anthropic/claude-3.5-haiku">Claude 3.5 Haiku (Paid)</option>
+                    <option value="openai/o4-mini">OpenAI o4 Mini (Paid)</option>
+                    <option value="openai/o3">OpenAI o3 (Paid)</option>
                   </optgroup>
                 </select>
               </div>

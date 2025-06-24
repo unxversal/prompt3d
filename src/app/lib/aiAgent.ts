@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { REPLICAD_DOCS } from './replicadDocs';
-import { AI_FUNCTIONS, AIContext, FunctionCall } from '../types/ai';
+import { AI_FUNCTIONS, AIContext, FunctionCall, Screenshot } from '../types/ai';
 
 export class AIAgent {
   private openai: OpenAI | null = null;
@@ -37,44 +37,122 @@ export class AIAgent {
   }
 
   private createSystemPrompt(): string {
-    return `You are C3D, an advanced AI CAD assistant that helps users create 3D models using ReplicaD, a powerful CAD library. You have access to the complete ReplicaD documentation and can write, modify, and explain CAD code.
+    return `# C3D - Your Advanced AI CAD Assistant
 
-## Your Capabilities:
-- **Code Generation**: Write complete CAD scripts using ReplicaD
-- **Code Modification**: Update existing code with precise diffs
-- **Planning**: Create detailed plans before implementation
-- **Progress Updates**: Keep users informed of your progress
-- **Task Completion**: Provide summaries when finished
+You are C3D, an intelligent AI assistant that helps users create sophisticated 3D models using ReplicaD, a powerful parametric CAD library. C3D is an agentic, code-first CAD editor that empowers users to design through natural language and intelligent code generation.
 
-## Available Libraries:
-- **replicad**: Core CAD modeling library
-- **replicad-threejs-helper**: Integration with Three.js for rendering
-- **three**: 3D graphics library for visualization
+## Your Identity & Mission:
+- **Who you are**: C3D, an expert CAD AI specialized in ReplicaD modeling
+- **Your goal**: Transform user ideas into precise, manufacturable 3D models
+- **Your approach**: Intelligent, iterative, and educational - always explain your design decisions
+
+## Core Capabilities:
+
+### 🎯 **Planning & Execution**
+1. **Strategic Planning**: Always start with \`send_plan\` to outline your approach
+2. **Progress Updates**: Use \`notify_user\` to keep users informed throughout the process
+3. **Adaptive Planning**: Use \`update_plan\` when requirements change or better approaches emerge
+4. **Task Completion**: Always conclude with \`complete_task\` providing comprehensive summaries
+
+### 🛠 **Code Generation & Modification**
+- **Complete Rewrites**: Use \`write_code\` for new implementations or major changes
+- **Precision Updates**: Use \`update_code\` for targeted modifications with exact diffs
+- **Always validate**: Ensure code is syntactically correct and follows ReplicaD patterns
+
+### 📐 **Available Technology Stack**
+
+**Primary Libraries:**
+- **replicad**: Core CAD modeling library for creating 3D geometry
+- **replicad-threejs-helper**: Integration layer for Three.js rendering (use \`syncGeometries\`)
+- **three**: 3D graphics library for visualization and interaction
+
+**Code Structure Requirements:**
+\`\`\`typescript
+// Always import required functions at the top
+import { drawCircle, drawRoundedRectangle, extrude } from 'replicad';
+import { syncGeometries } from 'replicad-threejs-helper';
+
+// Create shapes using replicad
+const shape = drawCircle(20).sketchOnPlane().extrude(50);
+
+// Mesh for Three.js rendering
+const meshedShapes = [{
+  name: 'ShapeName',
+  faces: shape.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+  edges: shape.meshEdges(),
+}];
+
+// Convert to Three.js format
+const geometries = syncGeometries(meshedShapes, []);
+
+// Export for the 3D viewer
+export { geometries };
+\`\`\`
+
+## Design Principles:
+
+### 📏 **Parametric Design**
+- Use variables for dimensions to enable easy modifications
+- Create reusable, configurable components
+- Think in terms of design intent, not just geometry
+
+### 🔧 **Manufacturing Awareness**
+- Consider real-world constraints (tolerances, material properties)
+- Design for 3D printing when appropriate
+- Include proper fillets and chamfers for strength and aesthetics
+
+### 🎨 **Best Practices**
+- Start simple, build complexity gradually
+- Use meaningful variable names and clear comments
+- Optimize mesh tolerance for performance vs quality balance
+- Organize code logically with clear sections
 
 ## Function Calling Protocol:
-1. Always start by calling \`send_plan\` with your implementation strategy
-2. Use \`notify_user\` to provide updates during execution
-3. Use \`write_code\` for complete code replacement or \`update_code\` for targeted changes
-4. Call \`update_plan\` if your approach needs to change
-5. Always end with \`complete_task\` providing a summary
 
-## ReplicaD Documentation:
+### Phase 1: Planning
+1. **Analyze** the user request and current code context
+2. **Plan** your approach using \`send_plan\` with detailed steps
+3. **Communicate** your design philosophy and approach
+
+### Phase 2: Implementation
+1. **Notify** users of major steps using \`notify_user\`
+2. **Code** using \`write_code\` or \`update_code\` as appropriate
+3. **Update** plans if needed using \`update_plan\`
+4. **Iterate** based on results and feedback
+
+### Phase 3: Completion
+1. **Summarize** what was accomplished
+2. **Complete** the task using \`complete_task\`
+3. **Educate** by explaining design decisions and alternatives
+
+## ReplicaD Documentation Reference:
 ${REPLICAD_DOCS}
 
-## Code Structure Guidelines:
-- Always import required functions from replicad at the top
-- Use syncGeometries from replicad-threejs-helper for Three.js integration
-- Create meshed shapes with appropriate tolerance settings
-- Export geometries for the 3D viewer
-- Include meaningful comments explaining the CAD operations
+## Communication Guidelines:
 
-## Best Practices:
-- Start with simple shapes and build complexity gradually
-- Use parametric design principles when possible
-- Optimize mesh tolerance for performance vs quality
-- Provide clear variable names and structure
+### 🗣 **User Notifications**
+- **Info**: General progress updates and explanations
+- **Warning**: Potential issues or design considerations
+- **Error**: Problems that need attention
+- **Success**: Completed milestones and achievements
 
-Remember: You are helping users learn CAD design while creating their requested 3D models. Be educational, precise, and always explain your design decisions.`;
+### 📱 **Collapsed Mode Behavior**
+- Generate concise, informative messages for toast notifications
+- Focus on key progress indicators and completion status
+- Use clear, non-technical language for quick understanding
+
+### 🎓 **Educational Approach**
+- Explain WHY you make specific design choices
+- Teach CAD principles through practical application
+- Provide alternatives and trade-offs when relevant
+- Help users understand the relationship between code and geometry
+
+## Special Context Awareness:
+- **Current Code**: You have access to the user's existing code
+- **Visual Context**: Four orthographic screenshots (front, back, left, right) show the current model
+- **Conversation History**: Previous interactions provide context for iterative development
+
+Remember: You're not just generating code - you're teaching CAD design while creating exactly what the user envisions. Be thorough, be educational, and always strive for engineering excellence.`;
   }
 
   async processUserMessage(
@@ -83,6 +161,14 @@ Remember: You are helping users learn CAD design while creating their requested 
   ): Promise<void> {
     if (!this.openai) {
       throw new Error('API key not set');
+    }
+
+    // Capture screenshots if we have the capability
+    let screenshots: Screenshot[] = [];
+    try {
+      screenshots = await captureViewportScreenshots();
+    } catch (error) {
+      console.warn('Failed to capture screenshots:', error);
     }
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -103,15 +189,16 @@ Current Code:
 ${context.currentCode}
 \`\`\`
 
-Screenshots: ${context.screenshots.length} views available (front, back, left, right)
+Visual Context: I have captured ${screenshots.length} orthographic views of the current 3D model:
+${screenshots.map(shot => `- ${shot.view.toUpperCase()} view: Current geometry visible`).join('\n')}
 
-Please analyze the request and current code, then create a plan and execute the necessary changes.`,
+Please analyze the request, current code, and visual context to create a comprehensive plan and execute the necessary changes. Start by sending your plan, then proceed with implementation.`,
       },
     ];
 
     let isComplete = false;
     let iterations = 0;
-    const maxIterations = 10; // Prevent infinite loops
+    const maxIterations = 15; // Increased for more complex tasks
 
     while (!isComplete && iterations < maxIterations) {
       iterations++;
@@ -130,6 +217,7 @@ Please analyze the request and current code, then create a plan and execute the 
           })),
           tool_choice: 'auto',
           temperature: 0.1,
+          max_tokens: 4000,
         });
 
         const message = completion.choices[0]?.message;
@@ -176,7 +264,7 @@ Please analyze the request and current code, then create a plan and execute the 
             }
           }
         } else if (message.content) {
-          // Regular message without function calls
+          // Regular message without function calls - convert to notification
           await onFunctionCall({
             name: 'notify_user',
             arguments: {
@@ -200,7 +288,7 @@ Please analyze the request and current code, then create a plan and execute the 
       await onFunctionCall({
         name: 'notify_user',
         arguments: {
-          message: 'AI agent reached maximum iterations. Task may be incomplete.',
+          message: `Maximum iterations reached (${maxIterations}). Task may be incomplete. Please review the results and provide additional guidance if needed.`,
           type: 'warning'
         }
       });
@@ -225,18 +313,92 @@ Please analyze the request and current code, then create a plan and execute the 
 }
 
 // Utility function to capture screenshots from the 3D viewport
-export async function captureViewportScreenshots(): Promise<{ view: string; dataUrl: string }[]> {
-  // This would integrate with the Three.js renderer to capture screenshots
-  // For now, return empty array - will be implemented with the viewport integration
-  return [];
+export async function captureViewportScreenshots(): Promise<Screenshot[]> {
+  const screenshots: Screenshot[] = [];
+  
+  // Check if we have access to the Canvas element
+  const canvas = document.querySelector('canvas');
+  if (!canvas) {
+    throw new Error('No 3D canvas found for screenshot capture');
+  }
+
+  // Get the Three.js scene and camera from the React Three Fiber context
+  // This is a bit tricky since we need to access the Three.js internals
+  // We'll use a global hook for this
+    interface Vector3 {
+    x: number;
+    y: number;
+    z: number;
+  }
+  
+  interface CameraController {
+    camera: { position: Vector3 };
+    controls?: { target: Vector3 };
+    moveToView: (position: [number, number, number], target: [number, number, number]) => Promise<void>;
+  }
+  
+  if (typeof window !== 'undefined' && (window as { __CAD_CAMERA_CONTROLLER__?: CameraController }).__CAD_CAMERA_CONTROLLER__) {
+    const controller = (window as { __CAD_CAMERA_CONTROLLER__?: CameraController }).__CAD_CAMERA_CONTROLLER__!;
+     
+     const views: Array<{ name: 'front' | 'back' | 'left' | 'right', position: [number, number, number], target: [number, number, number] }> = [
+       { name: 'front', position: [0, 0, 100], target: [0, 0, 0] },
+       { name: 'back', position: [0, 0, -100], target: [0, 0, 0] },
+       { name: 'left', position: [-100, 0, 0], target: [0, 0, 0] },
+       { name: 'right', position: [100, 0, 0], target: [0, 0, 0] }
+     ];
+
+     // Store original camera state
+     const originalPosition: Vector3 = { ...controller.camera.position };
+     const originalTarget: Vector3 | undefined = controller.controls?.target ? { ...controller.controls.target } : undefined;
+
+    try {
+      for (const view of views) {
+        // Smoothly transition to the view
+        await controller.moveToView(view.position, view.target);
+        
+        // Wait for rendering to complete
+        await new Promise(resolve => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(resolve);
+          });
+        });
+
+        // Capture screenshot
+        const dataUrl = canvas.toDataURL('image/png');
+        screenshots.push({
+          view: view.name,
+          dataUrl
+        });
+      }
+
+      // Return to original position
+      await controller.moveToView(
+        [originalPosition.x, originalPosition.y, originalPosition.z],
+        originalTarget ? [originalTarget.x, originalTarget.y, originalTarget.z] : [0, 0, 0]
+      );
+      
+    } catch (error) {
+      console.error('Failed to capture screenshots:', error);
+      // Return to original position even if capture failed
+      if (originalPosition && originalTarget) {
+        await controller.moveToView(
+          [originalPosition.x, originalPosition.y, originalPosition.z],
+          [originalTarget.x, originalTarget.y, originalTarget.z]
+        );
+      }
+      throw error;
+    }
+  }
+
+  return screenshots;
 }
 
 // Utility function to apply code diffs
 export function applyCodeDiff(originalCode: string, oldCode: string, newCode: string): string {
-  // Simple string replacement - in production, might want to use a proper diff library
+  // Simple diff application - find and replace the old code with new code
   const index = originalCode.indexOf(oldCode);
   if (index === -1) {
-    throw new Error('Code section not found for diff application');
+    throw new Error('Could not find the specified code section to update');
   }
   
   return originalCode.substring(0, index) + newCode + originalCode.substring(index + oldCode.length);

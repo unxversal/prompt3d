@@ -462,6 +462,7 @@ export default function CADClientPage() {
               apiKey={apiKey}
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
+              onCodeExecute={executeCode}
             />
           ) : (
             <div className={styles.sandpackContainer}>
@@ -502,11 +503,12 @@ export default function CADClientPage() {
               apiKey={apiKey}
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
+              onCodeExecute={executeCode}
             />
           )}
         </div>
 
-        {/* Right Panel - Chat (when in panel mode) */}
+                  {/* Right Panel - Chat (when in panel mode) */}
         {chatState === 'panel' && (
           <ChatInterface 
             state="panel"
@@ -515,6 +517,7 @@ export default function CADClientPage() {
             apiKey={apiKey}
             model={model}
             onApiKeyRequired={handleApiKeyRequired}
+            onCodeExecute={executeCode}
           />
         )}
       </div>
