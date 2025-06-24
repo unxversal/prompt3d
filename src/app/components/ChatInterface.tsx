@@ -16,6 +16,8 @@ import { conversationStore } from '../lib/conversationStore';
 import { AIAgent, applyCodeDiff } from '../lib/aiAgent';
 import { Message, Conversation, FunctionCall, AIAgentState } from '../types/ai';
 import styles from './ChatInterface.module.css';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatInterfaceProps {
   state: 'panel' | 'overlay' | 'replace';
@@ -459,14 +461,6 @@ export default function ChatInterface({
     return Math.random().toString(36).substr(2, 9);
   };
 
-  const formatMessage = (content: string): string => {
-    // Convert markdown-like formatting for better display
-    return content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>');
-  };
-
   const getStatusIcon = (status?: string) => {
     switch (status) {
       case 'completed':
@@ -512,7 +506,16 @@ export default function ChatInterface({
       )}
       
       <div className={styles.messageContent}>
-        <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
+        <div className={styles.markdown}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+            }}
+          >
+            {msg.content}
+          </ReactMarkdown>
+        </div>
         <div className={styles.messageInfo}>
             <span className={styles.messageTimestamp}>
               {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
       messages,
       tools,
       tool_choice = 'auto',
+      response_format,
       temperature = 0.1,
       max_tokens = 4000
     } = body;
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
       messages,
       tools: tools || undefined,
       tool_choice: tools && tools.length > 0 ? tool_choice : undefined,
+      response_format: response_format || undefined,
       temperature,
       max_tokens,
     });

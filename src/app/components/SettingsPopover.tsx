@@ -218,7 +218,9 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                     const freeModels = [
                       'google/gemma-3-27b-it:free',
                       'qwen/qwen2.5-vl-72b-instruct:free',
-                      'mistralai/mistral-small-3.2-24b-instruct:free'
+                      'mistralai/mistral-small-3.2-24b-instruct:free',
+                      'google/gemini-2.0-flash-exp:free',
+                      'meta-llama/llama-4-maverick-17b-128e-instruct:free'
                     ];
                     
                     if (!freeModels.includes(selectedModel)) {
@@ -232,6 +234,8 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                     <option value="google/gemma-3-27b-it:free">Gemma 3 27B (Free)</option>
                     <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen 2.5 VL 72B (Free)</option>
                     <option value="mistralai/mistral-small-3.2-24b-instruct:free">Mistral Small 3.2 (Free)</option>
+                    <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash Experimental (Free)</option>
+                    <option value="meta-llama/llama-4-maverick-17b-128e-instruct:free">Llama-4 Maverick 17B (Free)</option>
                   </optgroup>
                   <optgroup label="Paid Models">
                     <option value="google/gemini-2.5-flash-lite-preview-06-17">Gemini 2.5 Flash Lite (Paid)</option>

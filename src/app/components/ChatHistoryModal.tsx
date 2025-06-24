@@ -36,6 +36,7 @@ export default function ChatHistoryModal({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -101,19 +102,36 @@ export default function ChatHistoryModal({
     }
   };
 
-  const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = async (id: string) => {
+    setConfirmingDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmingDeleteId) return;
+
+    const conversationToDelete = conversations.find(c => c.id === confirmingDeleteId);
+    if (!conversationToDelete) return;
 
     try {
-      await conversationStore.deleteConversation(id);
-      await loadConversations();
+      await conversationStore.deleteConversation(confirmingDeleteId);
+      setConversations(prev => prev.filter(c => c.id !== confirmingDeleteId));
       toast.success('Conversation deleted successfully');
+      
+      // If the currently loaded chat was deleted, start a new one
+      // This part of the logic might need to be stateful from parent
+      // For now, we just call onNewChat to be safe.
+      onNewChat();
+
     } catch (error) {
       console.error('Failed to delete conversation:', error);
       toast.error('Failed to delete conversation');
+    } finally {
+      setConfirmingDeleteId(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setConfirmingDeleteId(null);
   };
 
   const handleDuplicate = async (conversation: Conversation) => {
@@ -356,7 +374,7 @@ export default function ChatHistoryModal({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDelete(conversation.id, conversation.title);
+                        handleDelete(conversation.id);
                       }}
                       className={styles.actionButton}
                       title="Delete conversation"
@@ -364,6 +382,13 @@ export default function ChatHistoryModal({
                       <Trash2 size={14} />
                     </button>
                   </div>
+                  {confirmingDeleteId === conversation.id && (
+                    <div className={styles.confirmDeleteActions}>
+                      <span>Delete?</span>
+                      <button onClick={confirmDelete} className={styles.confirmButton}>Yes</button>
+                      <button onClick={cancelDelete} className={styles.cancelConfirmButton}>No</button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

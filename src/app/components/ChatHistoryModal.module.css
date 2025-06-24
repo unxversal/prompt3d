@@ -296,9 +296,7 @@
 }
 
 .actionButton:hover {
-  background: #1a1a1a;
-  border-color: #666666;
-  color: #ffffff;
+  background-color: var(--color-background-muted-hover);
 }
 
 /* Edit Input */
@@ -317,6 +315,65 @@
 .editInput:focus {
   outline: none;
   border-color: #888888;
+}
+
+/* Confirm Delete Actions */
+.confirmDeleteActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background-color: var(--color-background-danger-muted);
+  border-radius: var(--border-radius);
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.confirmDeleteActions span {
+  font-weight: 500;
+  color: var(--color-text-danger);
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
+.confirmButton, .cancelConfirmButton {
+  padding: 4px 8px;
+  border-radius: var(--border-radius);
+  border: 1px solid transparent;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.confirmButton {
+  background-color: var(--color-background-danger);
+  color: var(--color-text-on-danger);
+}
+
+.confirmButton:hover {
+  background-color: var(--color-background-danger-hover);
+  border-color: var(--color-border-danger);
+}
+
+.cancelConfirmButton {
+  background-color: var(--color-background-muted);
+  color: var(--color-text-primary);
+}
+
+.cancelConfirmButton:hover {
+  background-color: var(--color-background-muted-hover);
+}
+
+/* Edit Actions */
+.editActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.conversationItem:hover .editActions {
+  opacity: 1;
 }
 
 /* Responsive design */

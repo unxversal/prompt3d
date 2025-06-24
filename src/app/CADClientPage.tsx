@@ -390,12 +390,37 @@ export default function CADClientPage() {
     setModel(newModel);
   };
 
-  const handleNewChat = () => {
-    setCurrentConversation(null);
+  const handleNewChat = async () => {
+    // Create a fresh conversation with a greeting message
+    const newConversation: Conversation = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: 'New CAD Session',
+      messages: [
+        {
+          id: Math.random().toString(36).substr(2, 9),
+          role: 'assistant',
+          content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll analyze your request, create a plan, and generate the code for you.",
+          timestamp: new Date(),
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Persist it
+    try {
+      await conversationStore.saveConversation(newConversation);
+    } catch (err) {
+      console.error('Failed to save new conversation', err);
+    }
+
+    setCurrentConversation(newConversation);
     setShowChatHistory(false);
-    // Reset chat to hidden state and then open it
+
+    // Reset chat UI and open the panel
     setChatState('hidden');
     setTimeout(() => setChatState('panel'), 100);
+
     toast.success('Started new chat');
   };
 

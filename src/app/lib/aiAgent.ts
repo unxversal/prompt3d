@@ -221,6 +221,29 @@ Please analyze the request, current code, and visual context to create a compreh
       iterations++;
 
       try {
+        // Build a JSON schema for structured outputs
+        const functionNames = AI_FUNCTIONS.map(f => f.name);
+        const responseSchema = {
+          name: 'ai_function_call',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Name of the function to invoke',
+                enum: functionNames,
+              },
+              arguments: {
+                type: 'object',
+                description: 'Arguments for the function call',
+              },
+            },
+            required: ['name', 'arguments'],
+            additionalProperties: false,
+          },
+        };
+
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: {
@@ -230,15 +253,10 @@ Please analyze the request, current code, and visual context to create a compreh
             apiKey: this.apiKey,
             model: this.model,
             messages,
-            tools: AI_FUNCTIONS.map(func => ({
-              type: 'function' as const,
-              function: {
-                name: func.name,
-                description: func.description,
-                parameters: func.parameters,
-              },
-            })),
-            tool_choice: 'auto',
+            response_format: {
+              type: 'json_schema',
+              json_schema: responseSchema,
+            },
             temperature: 0.1,
             max_tokens: 4000,
           }),
@@ -259,49 +277,61 @@ Please analyze the request, current code, and visual context to create a compreh
         // Add assistant message to conversation
         messages.push(message);
 
-        if (message.tool_calls && message.tool_calls.length > 0) {
-          // Process function calls
-          for (const toolCall of message.tool_calls) {
+        // Parse structured JSON response
+        let actions: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+
+        if (message.content) {
+          try {
+            const parsed = JSON.parse(message.content.trim());
+
+            if (Array.isArray(parsed)) {
+              actions = parsed as Array<{ name: string; arguments: Record<string, unknown> }>;
+            } else if (typeof parsed === 'object' && parsed !== null && 'name' in parsed) {
+              actions = [parsed as { name: string; arguments: Record<string, unknown> }];
+            }
+          } catch {
+            // Not valid JSON, treat as plain content
+          }
+        }
+
+        if (actions.length > 0) {
+          for (const action of actions) {
             const functionCall: FunctionCall = {
-              name: toolCall.function.name,
-              arguments: JSON.parse(toolCall.function.arguments),
+              name: action.name,
+              arguments: action.arguments || {},
             };
 
             try {
               const result = await onFunctionCall(functionCall);
               functionCall.result = result;
 
-              // Add function result to conversation
+              // Provide feedback to the LLM
               messages.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: JSON.stringify(result || 'Function executed successfully'),
+                role: 'assistant',
+                content: `Function ${functionCall.name} executed. Result: ${JSON.stringify(result)}`,
               });
 
-              // Check if this was a completion function
-              if (toolCall.function.name === 'complete_task') {
+              if (functionCall.name === 'complete_task') {
                 isComplete = true;
                 break;
               }
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-              functionCall.error = errorMessage;
-              
+
               messages.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `Error: ${errorMessage}`,
+                role: 'assistant',
+                content: `Error executing ${functionCall.name}: ${errorMessage}`,
               });
             }
           }
         } else if (message.content) {
-          // Regular message without function calls - convert to notification
+          // Plain content – forward to user as notification
           await onFunctionCall({
             name: 'notify_user',
             arguments: {
               message: message.content,
-              type: 'info'
-            }
+              type: 'info',
+            },
           });
         }
       } catch (error) {
