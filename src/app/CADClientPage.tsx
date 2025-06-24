@@ -8,13 +8,14 @@ import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
-import { MessageCircle, Play, Command, Plus, History } from 'lucide-react';
+import { MessageCircle, Play, Command, Plus, History, Download } from 'lucide-react';
 import styles from './page.module.css';
 
 // Components
 import ChatInterface from './components/ChatInterface';
 import SettingsPopover, { SettingsButton } from './components/SettingsPopover';
 import ChatHistoryModal from './components/ChatHistoryModal';
+import Tooltip from './components/Tooltip';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
 
@@ -456,7 +457,7 @@ export default function CADClientPage() {
           <div className={styles.editorHeader}>
             <div className={styles.editorHeaderLeft}>
               {chatState === 'replace' ? (
-                <h3>AI Agent</h3>
+                <h3>C3D Agent</h3>
               ) : (
                 <>
                   <button
@@ -476,35 +477,45 @@ export default function CADClientPage() {
               )}
             </div>
             <div className={styles.editorHeaderRight}>
-              <button
-                className={styles.exportButton}
-                onClick={handleExportSTEP}
-                disabled={shapes.length === 0}
-              >
-                Export STEP
-              </button>
-              <SettingsButton onClick={() => setShowSettings(true)} />
-              <button
-                className={styles.newChatButton}
-                onClick={handleNewChat}
-                title="Start new chat"
-              >
-                <Plus size={16} />
-              </button>
-              <button
-                className={styles.historyButton}
-                onClick={() => setShowChatHistory(true)}
-                title="Chat history"
-              >
-                <History size={16} />
-              </button>
-              <button
-                className={styles.aiButton}
-                onClick={toggleChat}
-                title={`AI Agent (${chatState})`}
-              >
-                <MessageCircle size={16} />
-              </button>
+              <Tooltip content="Export STEP">
+                <button
+                  className={styles.exportButton}
+                  onClick={handleExportSTEP}
+                  disabled={shapes.length === 0}
+                >
+                  <Download size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Settings">
+                <SettingsButton onClick={() => setShowSettings(true)} />
+              </Tooltip>
+              <Tooltip content="New Chat">
+                <button
+                  className={styles.newChatButton}
+                  onClick={handleNewChat}
+                  title=""
+                >
+                  <Plus size={16} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Chat History">
+                <button
+                  className={styles.historyButton}
+                  onClick={() => setShowChatHistory(true)}
+                  title=""
+                >
+                  <History size={16} />
+                </button>
+              </Tooltip>
+              <Tooltip content="C3D Agent">
+                <button
+                  className={styles.aiButton}
+                  onClick={toggleChat}
+                  title=""
+                >
+                  <MessageCircle size={16} />
+                </button>
+              </Tooltip>
             </div>
           </div>
 

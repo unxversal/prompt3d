@@ -227,13 +227,18 @@
   background: transparent;
   border: 1px solid #333333;
   color: #ffffff;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem;
   border-radius: 4px;
   font-size: 0.8rem;
   font-weight: 300;
   cursor: pointer;
   transition: all 0.15s ease;
   letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
 }
 
 .exportButton:hover:not(:disabled) {
@@ -615,21 +620,21 @@
   z-index: 10000;
   pointer-events: none;
   white-space: nowrap;
-  transform: translateX(-100%) translateY(-50%);
+  transform: translateX(-50%);
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .tooltipArrow {
   position: absolute;
-  right: -4px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 4px solid #ffffff;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 4px solid #ffffff;
 }
 
 /* AI Button Styles */

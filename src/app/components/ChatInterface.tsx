@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Send, 
   Clock, 
@@ -58,26 +58,7 @@ export default function ChatInterface({
     }
   }, [apiKey, model]);
 
-  // Load or create conversation
-  useEffect(() => {
-    if (externalConversation) {
-      setCurrentConversation(externalConversation);
-    } else {
-      loadOrCreateConversation();
-    }
-  }, [externalConversation]);
-
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentConversation?.messages]);
-
-  // Update collapsed state when chat state changes
-  useEffect(() => {
-    setAgentState(prev => ({ ...prev, isCollapsed: state !== 'replace' }));
-  }, [state]);
-
-  const loadOrCreateConversation = async () => {
+  const loadOrCreateConversation = useCallback(async () => {
     try {
       const conversations = await conversationStore.getAllConversations();
       const latest = conversations[conversations.length - 1];
@@ -105,7 +86,26 @@ export default function ChatInterface({
       console.error('Failed to load conversation:', error);
       toast.error('Failed to load conversation history');
     }
-  };
+  }, []);
+
+  // Load or create conversation
+  useEffect(() => {
+    if (externalConversation) {
+      setCurrentConversation(externalConversation);
+    } else {
+      loadOrCreateConversation();
+    }
+  }, [externalConversation, loadOrCreateConversation]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentConversation?.messages]);
+
+  // Update collapsed state when chat state changes
+  useEffect(() => {
+    setAgentState(prev => ({ ...prev, isCollapsed: state !== 'replace' }));
+  }, [state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

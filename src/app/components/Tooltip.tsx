@@ -26,8 +26,8 @@ export default function Tooltip({ content, children, delay = 150 }: TooltipProps
     
     const rect = target.getBoundingClientRect();
     const tooltipPosition = {
-      x: rect.left - 8,
-      y: rect.top + rect.height / 2
+      x: rect.left + rect.width / 2,
+      y: rect.bottom + 8,
     };
     
     timeoutRef.current = setTimeout(() => {
