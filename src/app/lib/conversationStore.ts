@@ -116,7 +116,7 @@ class ConversationStore {
     if (!this.db) throw new Error('Database not initialized');
     
     const settings = await this.db.get('settings', 'model-settings');
-    return settings?.model || 'google/gemini-2.0-flash-exp:free'; // Default model
+    return settings?.model || 'google/gemma-3-27b-it:free'; // Default model
   }
 
   async setModel(model: string): Promise<void> {

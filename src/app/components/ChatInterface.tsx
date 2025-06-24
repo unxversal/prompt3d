@@ -25,6 +25,7 @@ interface ChatInterfaceProps {
   model: string;
   onApiKeyRequired: () => void;
   onCodeExecute?: () => void; // Added for code execution integration
+  currentConversation?: Conversation | null; // Optional external conversation to load
 }
 
 export default function ChatInterface({ 
@@ -34,7 +35,8 @@ export default function ChatInterface({
   apiKey,
   model,
   onApiKeyRequired,
-  onCodeExecute
+  onCodeExecute,
+  currentConversation: externalConversation
 }: ChatInterfaceProps) {
   const [message, setMessage] = useState('');
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -58,8 +60,12 @@ export default function ChatInterface({
 
   // Load or create conversation
   useEffect(() => {
-    loadOrCreateConversation();
-  }, []);
+    if (externalConversation) {
+      setCurrentConversation(externalConversation);
+    } else {
+      loadOrCreateConversation();
+    }
+  }, [externalConversation]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {

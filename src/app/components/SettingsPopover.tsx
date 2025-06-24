@@ -15,7 +15,7 @@ interface SettingsPopoverProps {
 
 export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onModelChange }: SettingsPopoverProps) {
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('google/gemini-2.0-flash-exp:free');
+  const [model, setModel] = useState('google/gemma-3-27b-it:free');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isValid, setIsValid] = useState<boolean | null>(null);
@@ -216,7 +216,6 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                     
                     // Check if model is free
                     const freeModels = [
-                      'google/gemini-2.0-flash-exp:free',
                       'google/gemma-3-27b-it:free',
                       'qwen/qwen2.5-vl-72b-instruct:free',
                       'mistralai/mistral-small-3.2-24b-instruct:free'
@@ -230,7 +229,6 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                   disabled={isLoading}
                 >
                   <optgroup label="Free Models">
-                    <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (Free)</option>
                     <option value="google/gemma-3-27b-it:free">Gemma 3 27B (Free)</option>
                     <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen 2.5 VL 72B (Free)</option>
                     <option value="mistralai/mistral-small-3.2-24b-instruct:free">Mistral Small 3.2 (Free)</option>

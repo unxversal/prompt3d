@@ -228,6 +228,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #ef4444;
 }
 
 .validIcon {
@@ -243,26 +244,22 @@
   gap: 8px;
 }
 
-.validateButton,
-.clearButton {
+.validateButton {
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
   padding: 8px 16px;
   border: 1px solid;
   border-radius: 0;
-  font-size: 14px;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.validateButton {
-  background: #000000;
-  border-color: #000000;
-  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .validateButton:hover:not(:disabled) {
-  background: #333333;
-  border-color: #333333;
+  background-color: #f0f0f0;
+  border-color: #f0f0f0;
 }
 
 .validateButton:disabled {
@@ -270,8 +267,32 @@
   cursor: not-allowed;
 }
 
+.dark .validateButton {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.light .validateButton {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.dark .validateButton:hover:not(:disabled) {
+  background: #e5e5e5;
+  border-color: #e5e5e5;
+}
+
 .clearButton {
   background: transparent;
+  padding: 8px 16px;
+  border: 1px solid;
+  border-radius: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .dark .clearButton {
@@ -291,7 +312,6 @@
 
 .light .clearButton:hover:not(:disabled) {
   background: #f0f0f0;
-  color: #000000;
 }
 
 .clearButton:disabled {
@@ -392,16 +412,39 @@
 
 .light .cancelButton:hover:not(:disabled) {
   background: #f0f0f0;
-  color: #000000;
 }
 
 .saveButton {
-  background: #000000;
-  color: #ffffff;
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
 }
 
 .saveButton:hover:not(:disabled) {
-  background: #333333;
+  background-color: #f0f0f0;
+  border-color: #f0f0f0;
+}
+
+.dark .saveButton {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.light .saveButton {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+.dark .saveButton:hover:not(:disabled) {
+  background: #e5e5e5;
+  border-color: #e5e5e5;
+}
+
+.light .saveButton:hover:not(:disabled) {
+  background: #e5e5e5;
+  border-color: #e5e5e5;
 }
 
 .saveButton:disabled,

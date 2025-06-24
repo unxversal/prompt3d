@@ -1,11 +1,29 @@
-import OpenAI from 'openai';
 import { REPLICAD_DOCS } from './replicadDocs';
 import { AI_FUNCTIONS, AIContext, FunctionCall, Screenshot } from '../types/ai';
 
+// Define types for our API responses
+interface ChatCompletionResponse {
+  choices: Array<{
+    message: {
+      role: string;
+      content?: string;
+      tool_calls?: Array<{
+        id: string;
+        type: string;
+        function: {
+          name: string;
+          arguments: string;
+        };
+      }>;
+    };
+  }>;
+}
+
+
+
 export class AIAgent {
-  private openai: OpenAI | null = null;
   private apiKey: string | null = null;
-  private model: string = 'google/gemini-2.0-flash-exp:free';
+  private model: string = 'google/gemma-3-27b-it:free';
 
   constructor(apiKey?: string, model?: string) {
     if (apiKey) {
@@ -18,14 +36,6 @@ export class AIAgent {
 
   setApiKey(apiKey: string): void {
     this.apiKey = apiKey;
-    this.openai = new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: apiKey,
-      defaultHeaders: {
-        'HTTP-Referer': 'https://prompt3d.com',
-        'X-Title': 'C3D - AI CAD Assistant',
-      },
-    });
   }
 
   setModel(model: string): void {
@@ -159,7 +169,7 @@ Remember: You're not just generating code - you're teaching CAD design while cre
     context: AIContext,
     onFunctionCall: (call: FunctionCall) => Promise<unknown>
   ): Promise<void> {
-    if (!this.openai) {
+    if (!this.apiKey) {
       throw new Error('API key not set');
     }
 
@@ -171,7 +181,14 @@ Remember: You're not just generating code - you're teaching CAD design while cre
       console.warn('Failed to capture screenshots:', error);
     }
 
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    // Define message format compatible with OpenAI API
+    interface ChatMessage {
+      role: string;
+      content?: string;
+      tool_call_id?: string;
+    }
+
+    const messages: ChatMessage[] = [
       {
         role: 'system',
         content: this.createSystemPrompt(),
@@ -204,23 +221,37 @@ Please analyze the request, current code, and visual context to create a compreh
       iterations++;
 
       try {
-        const completion = await this.openai.chat.completions.create({
-          model: this.model,
-          messages,
-          tools: AI_FUNCTIONS.map(func => ({
-            type: 'function' as const,
-            function: {
-              name: func.name,
-              description: func.description,
-              parameters: func.parameters,
-            },
-          })),
-          tool_choice: 'auto',
-          temperature: 0.1,
-          max_tokens: 4000,
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            apiKey: this.apiKey,
+            model: this.model,
+            messages,
+            tools: AI_FUNCTIONS.map(func => ({
+              type: 'function' as const,
+              function: {
+                name: func.name,
+                description: func.description,
+                parameters: func.parameters,
+              },
+            })),
+            tool_choice: 'auto',
+            temperature: 0.1,
+            max_tokens: 4000,
+          }),
         });
 
-        const message = completion.choices[0]?.message;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'API request failed');
+        }
+
+        const data: ChatCompletionResponse = await response.json();
+
+        const message = data.choices[0]?.message;
         if (!message) {
           throw new Error('No response from AI');
         }
@@ -297,15 +328,12 @@ Please analyze the request, current code, and visual context to create a compreh
 
   // Utility method to test API key
   async testApiKey(): Promise<boolean> {
-    if (!this.openai) return false;
+    if (!this.apiKey) return false;
 
     try {
-      await this.openai.chat.completions.create({
-        model: this.model,
-        messages: [{ role: 'user', content: 'Test' }],
-        max_tokens: 1,
-      });
-      return true;
+      const response = await fetch(`/api/chat?apiKey=${encodeURIComponent(this.apiKey)}&model=${encodeURIComponent(this.model)}`);
+      const data = await response.json();
+      return data.valid === true;
     } catch {
       return false;
     }

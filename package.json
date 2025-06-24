@@ -12,6 +12,7 @@
     "@codesandbox/sandpack-react": "^2.20.0",
     "@codesandbox/sandpack-themes": "^2.0.21",
     "@react-three/drei": "^10.3.0",
+    "ai": "^4.3.16",
     "idb": "^8.0.3",
     "jotai": "^2.12.5",
     "lucide-react": "^0.522.0",

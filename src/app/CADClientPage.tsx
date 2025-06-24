@@ -8,13 +8,15 @@ import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
-import { MessageCircle, Play, Command } from 'lucide-react';
+import { MessageCircle, Play, Command, Plus, History } from 'lucide-react';
 import styles from './page.module.css';
 
 // Components
 import ChatInterface from './components/ChatInterface';
 import SettingsPopover, { SettingsButton } from './components/SettingsPopover';
+import ChatHistoryModal from './components/ChatHistoryModal';
 import { conversationStore } from './lib/conversationStore';
+import { Conversation } from './types/ai';
 
 // Components
 import ErrorDisplay from './components/ErrorDisplay';
@@ -110,8 +112,10 @@ export default function CADClientPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace'>('hidden');
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [model, setModel] = useState<string>('google/gemini-2.0-flash-exp:free');
+  const [model, setModel] = useState<string>('google/gemma-3-27b-it:free');
   const [showSettings, setShowSettings] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false);
+  const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
 
   // Load API key and model on startup
   useEffect(() => {
@@ -385,6 +389,43 @@ export default function CADClientPage() {
     setModel(newModel);
   };
 
+  const handleNewChat = () => {
+    setCurrentConversation(null);
+    setShowChatHistory(false);
+    // Reset chat to hidden state and then open it
+    setChatState('hidden');
+    setTimeout(() => setChatState('panel'), 100);
+    toast.success('Started new chat');
+  };
+
+  const handleLoadConversation = (conversation: Conversation) => {
+    setCurrentConversation(conversation);
+    setShowChatHistory(false);
+    
+    // Find the last code from the conversation
+    let lastCode = code; // fallback to current code
+    
+    // Look for write_code or update_code function calls in reverse order
+    for (let i = conversation.messages.length - 1; i >= 0; i--) {
+      const message = conversation.messages[i];
+      if (message.metadata?.functionCall) {
+        const funcCall = message.metadata.functionCall;
+        if (funcCall.name === 'write_code' && funcCall.arguments.code) {
+          lastCode = funcCall.arguments.code as string;
+          break;
+        }
+      }
+    }
+    
+    // Update the code if we found some
+    if (lastCode !== code) {
+      setCode(lastCode);
+    }
+    
+    // Open chat panel
+    setChatState('panel');
+  };
+
   return (
     <div className={styles.pageContainer}>
       <header className={styles.header}>
@@ -444,6 +485,20 @@ export default function CADClientPage() {
               </button>
               <SettingsButton onClick={() => setShowSettings(true)} />
               <button
+                className={styles.newChatButton}
+                onClick={handleNewChat}
+                title="Start new chat"
+              >
+                <Plus size={16} />
+              </button>
+              <button
+                className={styles.historyButton}
+                onClick={() => setShowChatHistory(true)}
+                title="Chat history"
+              >
+                <History size={16} />
+              </button>
+              <button
                 className={styles.aiButton}
                 onClick={toggleChat}
                 title={`AI Agent (${chatState})`}
@@ -463,6 +518,7 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               onCodeExecute={executeCode}
+              currentConversation={currentConversation}
             />
           ) : (
             <div className={styles.sandpackContainer}>
@@ -504,6 +560,7 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               onCodeExecute={executeCode}
+              currentConversation={currentConversation}
             />
           )}
         </div>
@@ -518,6 +575,7 @@ export default function CADClientPage() {
             model={model}
             onApiKeyRequired={handleApiKeyRequired}
             onCodeExecute={executeCode}
+            currentConversation={currentConversation}
           />
         )}
       </div>
@@ -528,6 +586,15 @@ export default function CADClientPage() {
         onClose={() => setShowSettings(false)}
         onApiKeyChange={handleApiKeyChange}
         onModelChange={handleModelChange}
+      />
+
+      {/* Chat History Modal */}
+      <ChatHistoryModal
+        isOpen={showChatHistory}
+        onClose={() => setShowChatHistory(false)}
+        onNewChat={handleNewChat}
+        onLoadConversation={handleLoadConversation}
+        currentCode={code}
       />
     </div>
   );
