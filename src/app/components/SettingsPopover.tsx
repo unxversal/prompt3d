@@ -31,7 +31,7 @@ const PRESET_PROVIDERS = [
     supportsToolCalling: true,
     supportsJsonOutput: false,
     website: 'https://console.anthropic.com/settings/keys',
-    placeholder: 'sk-ant-... or supersecretkeybypass',
+    placeholder: 'sk-ant-...',
     defaultModel: 'claude-sonnet-4-20250514',
   },
   {
