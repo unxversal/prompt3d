@@ -53,6 +53,7 @@ export default function ChatInterface({
   const [agent, setAgent] = useState<AIAgent | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitializedConversation = useRef(false);
   const { theme } = useTheme();
 
   // Initialize AI agent when API key or model changes
@@ -105,17 +106,20 @@ export default function ChatInterface({
     console.log('🔄 Conversation effect triggered:', { 
       hasExternalConversation: !!externalConversation, 
       currentConversationId: currentConversation?.id,
-      externalConversationId: externalConversation?.id
+      externalConversationId: externalConversation?.id,
+      hasInitialized: hasInitializedConversation.current
     });
     
     if (externalConversation && (!currentConversation || currentConversation.id !== externalConversation.id)) {
       console.log('📝 Setting external conversation:', externalConversation.id);
       setCurrentConversation(externalConversation);
-    } else if (!externalConversation && !currentConversation) {
+      hasInitializedConversation.current = true;
+    } else if (!externalConversation && !currentConversation && !hasInitializedConversation.current) {
       console.log('🆕 Loading or creating new conversation');
+      hasInitializedConversation.current = true;
       loadOrCreateConversation();
     }
-  }, [externalConversation, currentConversation, loadOrCreateConversation]);
+  }, [externalConversation, currentConversation]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {

@@ -20,6 +20,7 @@ interface ChatHistoryModalProps {
   onClose: () => void;
   onNewChat: () => void;
   onLoadConversation: (conversation: Conversation) => void;
+  onConversationRenamed?: (conversationId: string, newTitle: string) => void;
   currentCode: string;
 }
 
@@ -28,6 +29,7 @@ export default function ChatHistoryModal({
   onClose, 
   onNewChat,
   onLoadConversation,
+  onConversationRenamed,
   currentCode 
 }: ChatHistoryModalProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -96,6 +98,9 @@ export default function ChatHistoryModal({
       setEditingId(null);
       setEditingTitle('');
       toast.success('Conversation renamed successfully');
+      if (onConversationRenamed) {
+        onConversationRenamed(id, newTitle);
+      }
     } catch (error) {
       console.error('Failed to rename conversation:', error);
       toast.error('Failed to rename conversation');

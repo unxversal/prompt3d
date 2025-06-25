@@ -28,12 +28,15 @@ export interface Conversation {
 }
 
 export interface AIAgentFunction {
-  name: string;
-  description: string;
-  parameters: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required: string[];
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, unknown>;
+      required: string[];
+    };
   };
 }
 
@@ -59,80 +62,92 @@ export interface AIContext {
 // Available AI agent functions
 export const AI_FUNCTIONS: AIAgentFunction[] = [
   {
-    name: 'notify_user',
-    description: 'Send a notification or message to the user with markdown support',
-    parameters: {
-      type: 'object',
-      properties: {
-        message: {
-          type: 'string',
-          description: 'The message to display to the user in markdown format'
+    type: 'function',
+    function: {
+      name: 'notify_user',
+      description: 'Send a notification or message to the user with markdown support',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: {
+            type: 'string',
+            description: 'The message to display to the user in markdown format'
+          },
+          type: {
+            type: 'string',
+            enum: ['info', 'warning', 'error', 'success'],
+            description: 'The type of notification'
+          }
         },
-        type: {
-          type: 'string',
-          enum: ['info', 'warning', 'error', 'success'],
-          description: 'The type of notification'
-        }
-      },
-      required: ['message']
+        required: ['message']
+      }
     }
   },
   {
-    name: 'write_code',
-    description: 'Replace the entire code in the editor with new code',
-    parameters: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'string',
-          description: 'The complete code to replace the current editor content'
+    type: 'function',
+    function: {
+      name: 'write_code',
+      description: 'Replace the entire code in the editor with new code',
+      parameters: {
+        type: 'object',
+        properties: {
+          code: {
+            type: 'string',
+            description: 'The complete code to replace the current editor content'
+          },
+          explanation: {
+            type: 'string',
+            description: 'Brief explanation of what the code does'
+          }
         },
-        explanation: {
-          type: 'string',
-          description: 'Brief explanation of what the code does'
-        }
-      },
-      required: ['code']
+        required: ['code']
+      }
     }
   },
   {
-    name: 'edit_code',
-    description: 'Apply a targeted edit to specific parts of the existing code',
-    parameters: {
-      type: 'object',
-      properties: {
-        oldCode: {
-          type: 'string',
-          description: 'The exact code section to replace'
+    type: 'function',
+    function: {
+      name: 'edit_code',
+      description: 'Apply a targeted edit to specific parts of the existing code',
+      parameters: {
+        type: 'object',
+        properties: {
+          oldCode: {
+            type: 'string',
+            description: 'The exact code section to replace'
+          },
+          newCode: {
+            type: 'string',
+            description: 'The new code to replace the old section'
+          },
+          explanation: {
+            type: 'string',
+            description: 'Brief explanation of the change'
+          }
         },
-        newCode: {
-          type: 'string',
-          description: 'The new code to replace the old section'
-        },
-        explanation: {
-          type: 'string',
-          description: 'Brief explanation of the change'
-        }
-      },
-      required: ['oldCode', 'newCode']
+        required: ['oldCode', 'newCode']
+      }
     }
   },
   {
-    name: 'idle',
-    description: 'Mark the current task as complete and stop processing',
-    parameters: {
-      type: 'object',
-      properties: {
-        summary: {
-          type: 'string',
-          description: 'Summary of what was accomplished'
+    type: 'function',
+    function: {
+      name: 'idle',
+      description: 'Mark the current task as complete and stop processing',
+      parameters: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'string',
+            description: 'Summary of what was accomplished'
+          },
+          message: {
+            type: 'string',
+            description: 'Final message to the user'
+          }
         },
-        message: {
-          type: 'string',
-          description: 'Final message to the user'
-        }
-      },
-      required: ['summary', 'message']
+        required: ['summary', 'message']
+      }
     }
   }
 ]; 

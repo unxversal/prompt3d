@@ -43,43 +43,35 @@ export interface ReplicadShape {
   opacity?: number;
 }
 
-// Default example code showing replicad-threejs-helper usage
-const DEFAULT_CODE = `// Migrated to replicad-threejs-helper - No CSP Issues!
-// This code demonstrates the proper way to use replicad with Three.js
+// Default example code demonstrating use of Replicad without explicit imports.
+// All Replicad functions (drawCircle, makeCuboid, union, etc.) are automatically
+// available in this editor.
 
-import { drawCircle, drawRoundedRectangle } from 'replicad';
-import { syncGeometries } from 'replicad-threejs-helper';
+const DEFAULT_CODE = `// ⚙️ Replicad functions are auto-injected – no import needed!
 
-// Example 1: Simple cylinder
-const cylinder = drawCircle(20).sketchOnPlane().extrude(50);
+// Example 1 – Simple cylinder
+const cylinder = drawCircle(20)           // radius 20 mm
+  .sketchOnPlane()                        // sketch on default XY plane
+  .extrude(50);                           // extrude 50 mm
 
-// Example 2: Rounded rectangle
-const roundedRect = drawRoundedRectangle(40, 30, 5)
+// Example 2 – Rounded-rectangle prism
+const roundedRect = drawRoundedRectangle(40, 30, 5) // 40×30 mm, r=5 mm corners
   .sketchOnPlane()
   .extrude(10);
 
-// Create meshed shapes for replicad-threejs-helper
+// Mesh shapes so the viewer can display them
 const meshedShapes = [
   {
     name: 'Cylinder',
     faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-    edges: cylinder.meshEdges({ keepMesh: true }),
+    edges: cylinder.meshEdges(),
   },
   {
     name: 'Rounded Rectangle',
     faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-    edges: roundedRect.meshEdges({ keepMesh: true }),
-  }
-];
-
-// Use replicad-threejs-helper to convert to Three.js BufferGeometry
-// This approach avoids CSP issues entirely
-const geometries = syncGeometries(meshedShapes, []);
-
-// Export for use in Three.js scene
-export { geometries };`;
-
-
+    edges: roundedRect.meshEdges(),
+  },
+];`;
 
 // Component to handle code changes within Sandpack context
 function CodeEditor({ onCodeChange }: { onCodeChange: (code: string) => void }) {
@@ -199,46 +191,110 @@ export default function CADClientPage() {
     });
 
     try {
-      // For now, execute the default example (user code execution requires eval)
       // Import replicad and helper
       const replicad = await import('replicad');
       const { syncGeometries } = await import('replicad-threejs-helper');
 
-      // Create shapes using replicad
-      const cylinder = replicad.drawCircle(20).sketchOnPlane().extrude(50);
-      const roundedRect = replicad.drawRoundedRectangle(40, 30, 5)
-        .sketchOnPlane()
-        .extrude(10);
+      // If code is empty or default, use the demo code
+      const codeToExecute = code.trim() === DEFAULT_CODE.trim() || !code.trim() ? `
+        // Default demo shapes
+        const cylinder = drawCircle(20).sketchOnPlane().extrude(50);
+        const roundedRect = drawRoundedRectangle(40, 30, 5)
+          .sketchOnPlane()
+          .extrude(10);
+        
+        const meshedShapes = [
+          {
+            name: 'Cylinder',
+            faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+            edges: cylinder.meshEdges(),
+          },
+          {
+            name: 'Rounded Rectangle',
+            faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+            edges: roundedRect.meshEdges(),
+          }
+        ];
+      ` : code;
 
-      // Store original replicad shapes for export
-      const originalShapes: ReplicadShape[] = [
-        {
-          name: 'Cylinder',
-          shape: cylinder,
+      // Remove any static import/export lines to avoid syntax errors inside AsyncFunction
+      const sanitizedCode = codeToExecute
+        .replace(/^\s*import[^\n]*$/gm, '')
+        .replace(/^\s*export[^\n]*$/gm, '');
+
+      // Dynamically inject *all* Replicad exports so they are available without explicit import.
+      // Build an AsyncFunction that receives the `replicad` module object, then immediately
+      // destructures every named export into local variables.
+
+      const replicadKeys = Object.keys(replicad).filter(k => k !== 'default');
+
+      let meshedShapes: any[] = [];
+      let originalShapes: ReplicadShape[] = [];
+
+      try {
+        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+
+        // Generate the function body. We create a destructuring statement so that each export
+        // (e.g. drawCircle, extrude, union, …) becomes a local identifier.
+        const asyncBody = `
+          // Make all Replicad exports available in the execution scope
+          const { ${replicadKeys.join(', ')} } = replicad;
+
+          ${sanitizedCode}
+
+          // Return the meshedShapes if they exist
+          if (typeof meshedShapes !== 'undefined') {
+            return meshedShapes;
+          }
+
+          // If no meshedShapes, return empty array
+          return [];
+        `;
+
+        const execFunction = new AsyncFunction('replicad', asyncBody);
+
+        // Execute with the full Replicad object injected
+        const result = await execFunction(replicad);
+        meshedShapes = Array.isArray(result) ? result : [];
+
+        // Create original shapes for export (simplified for now)
+        originalShapes = meshedShapes.map((shape, index) => ({
+          name: shape.name || `Shape ${index + 1}`,
+          shape: shape.faces ? shape : null,
           color: '#667eea',
-          opacity: 1
-        },
-        {
-          name: 'Rounded Rectangle',
-          shape: roundedRect,
-          color: '#f093fb',
-          opacity: 1
-        }
-      ];
+          opacity: 1,
+        }));
+      } catch (codeError) {
+        console.error('Code execution error:', codeError);
+        
+        // Fallback to demo shapes if user code fails
+        const cylinder = replicad.drawCircle(20).sketchOnPlane().extrude(50);
+        const roundedRect = replicad.drawRoundedRectangle(40, 30, 5)
+          .sketchOnPlane()
+          .extrude(10);
 
-      // Mesh the shapes
-      const meshedShapes = [
-        {
-          name: 'Cylinder',
-          faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-          edges: cylinder.meshEdges(),
-        },
-        {
-          name: 'Rounded Rectangle',
-          faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-          edges: roundedRect.meshEdges(),
-        }
-      ];
+        meshedShapes = [
+          {
+            name: 'Cylinder (Demo)',
+            faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+            edges: cylinder.meshEdges(),
+          },
+          {
+            name: 'Rounded Rectangle (Demo)',
+            faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+            edges: roundedRect.meshEdges(),
+          }
+        ];
+
+        originalShapes = [
+          { name: 'Cylinder (Demo)', shape: cylinder, color: '#667eea', opacity: 1 },
+          { name: 'Rounded Rectangle (Demo)', shape: roundedRect, color: '#f093fb', opacity: 1 }
+        ];
+
+        toast.warning('Code execution failed, showing demo shapes', {
+          description: codeError instanceof Error ? codeError.message : 'Unknown error'
+        });
+      }
 
       // Use replicad-threejs-helper to create Three.js geometries
       const geometries = syncGeometries(meshedShapes, []);
@@ -263,7 +319,7 @@ export default function CADClientPage() {
       });
 
       setShapes(workerShapes);
-      setReplicadShapes(originalShapes);  // Store original shapes for export
+      setReplicadShapes(originalShapes);
       toast.success('Shapes generated successfully!', {
         id: toastId,
         description: `Generated ${workerShapes.length} shapes.`,
@@ -278,7 +334,7 @@ export default function CADClientPage() {
     } finally {
       setIsExecuting(false);
     }
-  }, [isExecuting, isInitialized]);
+  }, [isExecuting, isInitialized, code]);
 
   // Auto-execute once after initialization
   useEffect(() => {
@@ -400,37 +456,33 @@ export default function CADClientPage() {
   };
 
   const handleNewChat = async () => {
-    // Create a fresh conversation with a greeting message
-    const newConversation: Conversation = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: 'New CAD Session',
-      messages: [
-        {
+    try {
+      // Create a new conversation
+      const newConversation: Conversation = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: 'New CAD Session',
+        messages: [{
           id: Math.random().toString(36).substr(2, 9),
           role: 'assistant',
-          content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll analyze your request, create a plan, and generate the code for you.",
+          content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll generate the code for you.",
           timestamp: new Date(),
-        },
-      ],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+        }],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    // Persist it
-    try {
       await conversationStore.saveConversation(newConversation);
-    } catch (err) {
-      console.error('Failed to save new conversation', err);
+      setCurrentConversation(newConversation);
+
+      // Reset chat state to show the new conversation
+      setChatState('hidden');
+      setTimeout(() => setChatState('panel'), 100);
+
+      toast.success('Started new chat');
+    } catch (error) {
+      console.error('Failed to create new chat:', error);
+      toast.error('Failed to create new chat');
     }
-
-    setCurrentConversation(newConversation);
-    setShowChatHistory(false);
-
-    // Reset chat UI and open the panel
-    setChatState('hidden');
-    setTimeout(() => setChatState('panel'), 100);
-
-    toast.success('Started new chat');
   };
 
   const handleLoadConversation = (conversation: Conversation) => {
@@ -459,6 +511,17 @@ export default function CADClientPage() {
     
     // Open chat panel
     setChatState('panel');
+  };
+
+  const handleConversationRenamed = (conversationId: string, newTitle: string) => {
+    // Update current conversation if it's the one being renamed
+    if (currentConversation && currentConversation.id === conversationId) {
+      setCurrentConversation(prev => prev ? {
+        ...prev,
+        title: newTitle,
+        updatedAt: new Date()
+      } : null);
+    }
   };
 
   return (
@@ -640,6 +703,7 @@ export default function CADClientPage() {
         onClose={() => setShowChatHistory(false)}
         onNewChat={handleNewChat}
         onLoadConversation={handleLoadConversation}
+        onConversationRenamed={handleConversationRenamed}
         currentCode={code}
       />
     </div>

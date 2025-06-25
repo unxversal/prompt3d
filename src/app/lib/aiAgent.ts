@@ -65,26 +65,26 @@ Transform user ideas into precise, well-commented 3D model code using ReplicaD.
 
 ## Code Requirements:
 
-**Always use extensive comments in your code to explain what you're doing:**
+Replicad's entire API is automatically available—**do not use static \`import\` or \`export\`.**
+
+**Always include extensive comments explaining what your code does.**
 
 \`\`\`typescript
-// Import required functions from replicaD
-import { drawCircle, drawRoundedRectangle, extrude } from 'replicad';
-import { syncGeometries } from 'replicad-threejs-helper';
+// All Replicad functions (drawCircle, makeCuboid, union, …) are already in scope
 
 // Create the main cylinder shape
-// Radius: 20mm, Height: 50mm
+// Radius: 20 mm, Height: 50 mm
 const cylinder = drawCircle(20)
   .sketchOnPlane()
   .extrude(50);
 
-// Create a rounded rectangle base
-// Width: 40mm, Height: 30mm, Corner radius: 5mm
+// Create a rounded-rectangle base
+// Width 40 mm × Height 30 mm with 5 mm corner radius
 const base = drawRoundedRectangle(40, 30, 5)
   .sketchOnPlane()
   .extrude(10);
 
-// Mesh shapes for Three.js rendering
+// Provide meshes for the viewer
 const meshedShapes = [
   {
     name: 'Main Cylinder',
@@ -92,17 +92,11 @@ const meshedShapes = [
     edges: cylinder.meshEdges(),
   },
   {
-    name: 'Base Plate', 
+    name: 'Base Plate',
     faces: base.mesh({ tolerance: 0.05, angularTolerance: 30 }),
     edges: base.meshEdges(),
-  }
+  },
 ];
-
-// Convert to Three.js format for the 3D viewer
-const geometries = syncGeometries(meshedShapes, []);
-
-// Export for the 3D viewer
-export { geometries };
 \`\`\`
 
 ## Design Principles:
@@ -164,15 +158,31 @@ ${REPLICAD_DOCS}
       tool_call_id?: string;
     }
 
+    // Prepare conversation history - filter out messages with malformed tool calls
+    const conversationMessages = context.conversationHistory
+      .filter(msg => {
+        // Keep user messages
+        if (msg.role === 'user') return true;
+        
+        // Keep assistant messages without function calls
+        if (msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
+        
+        // Skip assistant messages with function calls to avoid API errors
+        // These cause issues because they need tool response messages that we don't store
+        return false;
+      })
+      .map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      }))
+      .filter(msg => msg.content.trim().length > 0); // Filter out empty messages
+
     const messages: ChatMessage[] = [
       {
         role: 'system',
         content: this.createSystemPrompt(),
       },
-      ...context.conversationHistory.map(msg => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      })),
+      ...conversationMessages,
       {
         role: 'user',
         content: `User Request: ${context.userPrompt}
@@ -198,7 +208,7 @@ Please implement this request directly using the available tools. Use write_code
 
       try {
         // Build a JSON schema for structured outputs
-        const functionNames = AI_FUNCTIONS.map(f => f.name);
+        const functionNames = AI_FUNCTIONS.map(f => f.function.name);
         const responseSchema = {
           name: 'ai_function_call',
           strict: true,
@@ -258,7 +268,52 @@ Please implement this request directly using the available tools. Use write_code
         // Add assistant message to conversation
         messages.push(message);
 
-        // Parse structured JSON response
+        // Handle tool calls if present (when useToolCalling is enabled)
+        if (message.tool_calls && message.tool_calls.length > 0) {
+          console.log(`Processing ${message.tool_calls.length} tool calls`);
+          
+          for (const toolCall of message.tool_calls) {
+            const functionCall: FunctionCall = {
+              name: toolCall.function.name,
+              arguments: JSON.parse(toolCall.function.arguments),
+            };
+
+            console.log(`Calling function: ${functionCall.name}`, functionCall.arguments);
+            try {
+              const result = await onFunctionCall(functionCall);
+              functionCall.result = result;
+              console.log(`Function ${functionCall.name} completed:`, result);
+
+              // Add tool response message
+              messages.push({
+                role: 'tool',
+                content: JSON.stringify(result),
+                tool_call_id: toolCall.id,
+              });
+
+              if (functionCall.name === 'idle') {
+                console.log('Task marked as complete, stopping processing');
+                isComplete = true;
+                break;
+              }
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              console.error(`Function ${functionCall.name} failed:`, errorMessage);
+
+              // Add error response message
+              messages.push({
+                role: 'tool',
+                content: `Error: ${errorMessage}`,
+                tool_call_id: toolCall.id,
+              });
+            }
+          }
+          
+          // Continue to next iteration if we processed tool calls
+          continue;
+        }
+
+        // Parse structured JSON response (for non-tool-calling mode)
         let actions: Array<{ name: string; arguments: Record<string, unknown> }> = [];
 
         if (message.content) {
