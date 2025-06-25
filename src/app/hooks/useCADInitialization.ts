@@ -70,7 +70,7 @@ export function useCADInitialization() {
 
     // Initialize when component mounts
     initializeCAD();
-  }, []); // Empty dependency array - run once on mount
+  }, [state.isInitialized, state.isInitializing]);
 
   return {
     ...state,

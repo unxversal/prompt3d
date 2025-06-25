@@ -139,6 +139,7 @@ function ToolButton({ tool, icon, label, isActive, onClick, disabled = false }: 
       'box': 'B',
       'cylinder': 'C',
       'sphere': 'S',
+      'cone': '',
       'sketch': 'S',
       'extrude': 'E',
       'revolve': '',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Eye, EyeOff, Check, X, Key, DollarSign, Brain } from 'lucide-react';
+import { Settings, Eye, EyeOff, X, Key, Brain, Globe, Wrench, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
 import { conversationStore } from '../lib/conversationStore';
@@ -10,28 +10,76 @@ interface SettingsPopoverProps {
   onClose: () => void;
   onApiKeyChange: (apiKey: string) => void;
   onModelChange: (model: string) => void;
+  onProviderSettingsChange?: (settings: {
+    baseUrl: string;
+    useToolCalling: boolean;
+  }) => void;
 }
 
-export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onModelChange }: SettingsPopoverProps) {
+const PRESET_PROVIDERS = [
+  {
+    name: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    supportsToolCalling: true,
+    supportsJsonOutput: true,
+    website: 'https://openrouter.ai/keys',
+    placeholder: 'sk-or-v1-...',
+  },
+  {
+    name: 'Anthropic',
+    baseUrl: 'https://api.anthropic.com/v1',
+    supportsToolCalling: true,
+    supportsJsonOutput: false,
+    website: 'https://console.anthropic.com/settings/keys',
+    placeholder: 'sk-ant-... or supersecretkeybypass',
+    defaultModel: 'claude-sonnet-4-20250514',
+  },
+  {
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    supportsToolCalling: true,
+    supportsJsonOutput: true,
+    website: 'https://platform.openai.com/api-keys',
+    placeholder: 'sk-...',
+    defaultModel: 'o3-2025-04-16',
+  },
+];
+
+export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onModelChange, onProviderSettingsChange }: SettingsPopoverProps) {
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('google/gemini-2.0-flash-exp:free');
+  const [model, setModel] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isValid, setIsValid] = useState<boolean | null>(null);
+  const [baseUrl, setBaseUrl] = useState('https://openrouter.ai/api/v1');
+  const [useToolCalling, setUseToolCalling] = useState(true);
+  const [selectedProvider, setSelectedProvider] = useState('OpenRouter');
+  const [customProvider, setCustomProvider] = useState(false);
   const { theme } = useTheme();
 
-  const loadApiKey = useCallback(async () => {
+  const currentProvider = PRESET_PROVIDERS.find(p => p.name === selectedProvider);
+
+  const loadSettings = useCallback(async () => {
     try {
       const savedApiKey = await conversationStore.getApiKey();
       const savedModel = await conversationStore.getModel();
+      const providerSettings = await conversationStore.getProviderSettings();
       
       if (savedApiKey) {
         setApiKey(savedApiKey);
-        // Test the saved API key
-        await validateApiKey(savedApiKey);
       }
       
       setModel(savedModel);
+      setBaseUrl(providerSettings.baseUrl);
+      setUseToolCalling(providerSettings.useToolCalling);
+      
+      // Detect provider type
+      const provider = PRESET_PROVIDERS.find(p => providerSettings.baseUrl.includes(new URL(p.baseUrl).hostname));
+      if (provider) {
+        setSelectedProvider(provider.name);
+        setCustomProvider(false);
+      } else {
+        setCustomProvider(true);
+      }
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -39,43 +87,33 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
 
   useEffect(() => {
     if (isOpen) {
-      loadApiKey();
+      loadSettings();
     }
-  }, [isOpen, loadApiKey]);
+  }, [isOpen, loadSettings]);
 
-  const validateApiKey = async (key: string) => {
-    if (!key.trim()) {
-      setIsValid(null);
-      return;
-    }
+  const handleProviderChange = (providerName: string) => {
+    setSelectedProvider(providerName);
+    setModel(''); // Clear previous model
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/validate-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: key }),
-      });
-      
-      const result = await response.json();
-      const valid = response.ok && result.valid;
-      
-      setIsValid(valid);
-      
-      if (valid) {
-        toast.success('API key validated successfully');
-      } else {
-        toast.error('Invalid API key');
+    if (providerName === 'Custom') {
+      setCustomProvider(true);
+      setBaseUrl('');
+    } else {
+      setCustomProvider(false);
+      const provider = PRESET_PROVIDERS.find(p => p.name === providerName);
+      if (provider) {
+        setBaseUrl(provider.baseUrl);
+        if (provider.defaultModel) {
+          setModel(provider.defaultModel);
+        }
+        
+        // Reset tool calling preference based on provider capabilities
+        setUseToolCalling(provider.supportsToolCalling);
       }
-    } catch {
-       setIsValid(false);
-       toast.error('Failed to validate API key');
-     } finally {
-      setIsLoading(false);
     }
   };
 
-    const handleSave = async () => {
+  const handleSave = async () => {
     if (!apiKey.trim()) {
       toast.error('Please enter an API key');
       return;
@@ -86,12 +124,42 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
       return;
     }
 
+    if (!baseUrl.trim()) {
+      toast.error('Please enter a base URL');
+      return;
+    }
+
+    // Validate tool calling selection
+    if (currentProvider && !customProvider) {
+      if (useToolCalling && !currentProvider.supportsToolCalling) {
+        toast.error(`${currentProvider.name} does not support tool calling. Please disable tool calling or choose a different provider.`);
+        return;
+      }
+      if (!useToolCalling && !currentProvider.supportsJsonOutput) {
+        toast.error(`${currentProvider.name} does not support JSON output. Please enable tool calling or choose a different provider.`);
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       await conversationStore.setApiKey(apiKey.trim());
       await conversationStore.setModel(model.trim());
+      await conversationStore.setProviderSettings({
+        baseUrl: baseUrl.trim(),
+        useToolCalling,
+      });
+      
       onApiKeyChange(apiKey.trim());
       onModelChange(model.trim());
+      
+      if (onProviderSettingsChange) {
+        onProviderSettingsChange({
+          baseUrl: baseUrl.trim(),
+          useToolCalling,
+        });
+      }
+      
       toast.success('Settings saved successfully');
       onClose();
     } catch {
@@ -105,12 +173,11 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     try {
       await conversationStore.setApiKey('');
       setApiKey('');
-      setIsValid(null);
       onApiKeyChange('');
       toast.success('API key cleared');
-         } catch {
-       toast.error('Failed to clear API key');
-     }
+    } catch {
+      toast.error('Failed to clear API key');
+    }
   };
 
   if (!isOpen) return null;
@@ -122,7 +189,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
         <div className={styles.header}>
           <div className={styles.headerContent}>
             <Settings size={16} />
-            <h3>Settings</h3>
+            <h3>Provider Settings</h3>
           </div>
           <button onClick={onClose} className={styles.closeButton}>
             <X size={16} />
@@ -130,10 +197,66 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
         </div>
 
         <div className={styles.content}>
+          {/* Provider Selection */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <Globe size={16} />
+              <label className={styles.label}>Provider</label>
+            </div>
+            
+            <div className={styles.inputGroup}>
+              <div className={styles.providerGrid}>
+                {PRESET_PROVIDERS.map((provider) => (
+                  <button
+                    key={provider.name}
+                    onClick={() => handleProviderChange(provider.name)}
+                    className={`${styles.providerButton} ${
+                      selectedProvider === provider.name && !customProvider ? styles.active : ''
+                    }`}
+                    disabled={isLoading}
+                  >
+                    {provider.name}
+                  </button>
+                ))}
+                <button
+                  onClick={() => handleProviderChange('Custom')}
+                  className={`${styles.providerButton} ${
+                    customProvider ? styles.active : ''
+                  }`}
+                  disabled={isLoading}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Custom Provider URL */}
+          {customProvider && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <Wrench size={16} />
+                <label className={styles.label}>Custom Base URL</label>
+              </div>
+              
+              <div className={styles.inputGroup}>
+                <input
+                  type="text"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  placeholder="https://api.example.com/v1"
+                  className={styles.input}
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* API Key */}
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <Key size={16} />
-              <label className={styles.label}>OpenRouter API Key</label>
+              <label className={styles.label}>API Key</label>
             </div>
             
             <div className={styles.inputGroup}>
@@ -143,12 +266,9 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                   value={apiKey}
                   onChange={(e) => {
                     setApiKey(e.target.value);
-                    setIsValid(null);
                   }}
-                  placeholder="sk-or-v1-..."
-                  className={`${styles.input} ${
-                    isValid === true ? styles.valid : isValid === false ? styles.invalid : ''
-                  }`}
+                  placeholder={currentProvider?.placeholder || 'Enter your API key...'}
+                  className={styles.input}
                   disabled={isLoading}
                 />
                 <button
@@ -159,25 +279,9 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                 >
                   {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-                {isValid !== null && (
-                  <div className={styles.validationIcon}>
-                    {isValid ? (
-                      <Check size={16} className={styles.validIcon} />
-                    ) : (
-                      <X size={16} className={styles.invalidIcon} />
-                    )}
-                  </div>
-                )}
               </div>
               
               <div className={styles.buttonGroup}>
-                <button
-                  onClick={() => validateApiKey(apiKey)}
-                  disabled={!apiKey.trim() || isLoading}
-                  className={styles.validateButton}
-                >
-                  {isLoading ? 'Testing...' : 'Test'}
-                </button>
                 <button
                   onClick={handleClear}
                   disabled={!apiKey || isLoading}
@@ -190,15 +294,21 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
 
             <div className={styles.help}>
               <p>
-                Get your API key from{' '}
-                <a 
-                  href="https://openrouter.ai/keys" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className={styles.link}
-                >
-                  OpenRouter
-                </a>
+                {currentProvider ? (
+                  <>
+                    Get your API key from{' '}
+                    <a 
+                      href={currentProvider.website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={styles.link}
+                    >
+                      {currentProvider.name}
+                    </a>
+                  </>
+                ) : (
+                  'Enter your custom provider API key'
+                )}
               </p>
               <p className={styles.note}>
                 Your API key is stored locally and never shared.
@@ -206,66 +316,77 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
             </div>
           </div>
 
+          {/* Model */}
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <Brain size={16} />
-              <label className={styles.label}>AI Model</label>
+              <label className={styles.label}>Model</label>
             </div>
             
             <div className={styles.inputGroup}>
-              <div className={styles.inputWrapper}>
-                <select
-                  value={model}
-                  onChange={(e) => {
-                    const selectedModel = e.target.value;
-                    setModel(selectedModel);
-                    
-                    // Check if model is free
-                    const freeModels = [
-                      'qwen/qwen2.5-vl-72b-instruct:free',
-                      'google/gemini-2.0-flash-exp:free',
-                    ];
-                    
-                    if (!freeModels.includes(selectedModel)) {
-                      toast.warning('This model is not free and will consume credits');
-                    }
-                  }}
-                  className={styles.select}
-                  disabled={isLoading}
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="Enter model name (e.g., google/gemini-2.0-flash-exp:free)"
+                className={styles.input}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className={styles.help}>
+                             <p className={styles.note}>
+                 Enter the exact model string for your provider. Check your provider&apos;s documentation for available models.
+               </p>
+            </div>
+          </div>
+
+          {/* Output Mode */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <MessageSquare size={16} />
+              <label className={styles.label}>Output Mode</label>
+            </div>
+            
+            <div className={styles.inputGroup}>
+              <div className={styles.toggleGroup}>
+                <button
+                  onClick={() => setUseToolCalling(true)}
+                  className={`${styles.toggleButton} ${useToolCalling ? styles.active : ''}`}
+                  disabled={isLoading || (currentProvider && !currentProvider.supportsToolCalling)}
                 >
-                  <optgroup label="Free Models">
-                    <option value="google/gemini-2.0-flash-exp:free">Gemma 3 27B (Free)</option>
-                    <option value="qwen/qwen2.5-vl-72b-instruct:free">Qwen 2.5 VL 72B (Free)</option>
-                    <option value="mistralai/mistral-small-3.2-24b-instruct:free">Mistral Small 3.2 (Free)</option>
-                    <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash Experimental (Free)</option>
-                    <option value="meta-llama/llama-4-maverick-17b-128e-instruct:free">Llama-4 Maverick 17B (Free)</option>
-                  </optgroup>
-                  <optgroup label="Paid Models">
-                    <option value="google/gemini-2.5-flash-lite-preview-06-17">Gemini 2.5 Flash Lite (Paid)</option>
-                    <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (Paid)</option>
-                    <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (Paid)</option>
-                    <option value="google/gemini-2.5-pro-preview">Gemini 2.5 Pro Preview (Paid)</option>
-                    <option value="anthropic/claude-sonnet-4">Claude Sonnet 4 (Paid)</option>
-                    <option value="anthropic/claude-opus-4">Claude Opus 4 (Paid)</option>
-                    <option value="anthropic/claude-3.7-sonnet:thinking">Claude 3.7 Sonnet (Paid)</option>
-                    <option value="anthropic/claude-3.5-haiku">Claude 3.5 Haiku (Paid)</option>
-                    <option value="openai/o4-mini">OpenAI o4 Mini (Paid)</option>
-                    <option value="openai/o3">OpenAI o3 (Paid)</option>
-                  </optgroup>
-                </select>
+                  Tool Calling
+                </button>
+                <button
+                  onClick={() => setUseToolCalling(false)}
+                  className={`${styles.toggleButton} ${!useToolCalling ? styles.active : ''}`}
+                  disabled={isLoading || (currentProvider && !currentProvider.supportsJsonOutput)}
+                >
+                  JSON Output
+                </button>
               </div>
             </div>
 
             <div className={styles.help}>
-              <p className={styles.paidIndicator}>
-                <DollarSign size={14} />
-                Paid models consume credits
-              </p>
               <p className={styles.note}>
-                Free models are rate-limited. Paid models offer higher limits and better performance.
+                {useToolCalling 
+                  ? 'Uses function calling for structured interactions (recommended)' 
+                  : 'Uses JSON schema for structured output (fallback for providers without tool support)'
+                }
               </p>
+              {currentProvider && (
+                <p className={styles.note}>
+                  {currentProvider.name} supports: {' '}
+                  {currentProvider.supportsToolCalling && 'Tool Calling'}
+                  {currentProvider.supportsToolCalling && currentProvider.supportsJsonOutput && ', '}
+                  {currentProvider.supportsJsonOutput && 'JSON Output'}
+                </p>
+              )}
             </div>
           </div>
+
+          {/* OpenRouter Specific Settings */}
+          
         </div>
 
         <div className={styles.footer}>
@@ -279,7 +400,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           <button
             onClick={handleSave}
             className={styles.saveButton}
-            disabled={!apiKey.trim() || isLoading}
+            disabled={!apiKey.trim() || !model.trim() || isLoading}
           >
             {isLoading ? 'Saving...' : 'Save'}
           </button>

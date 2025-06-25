@@ -332,6 +332,7 @@ export const undoStackAtom = atom<string[]>([]);
 export const redoStackAtom = atom<string[]>([]);
 
 // OrbitControls reference for dynamic viewport control
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const orbitControlsRefAtom = atom<React.MutableRefObject<any> | null>(null);
 
 // Helper to serialize/deserialize scene for undo/redo
@@ -339,6 +340,7 @@ const serializeScene = (scene: CADScene): string => JSON.stringify(scene);
 const deserializeScene = (jsonString: string): CADScene => {
   const scene = JSON.parse(jsonString);
   // Rehydrate Date objects if any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Object.values(scene.objects).forEach((obj: any) => {
     if (obj.metadata?.createdAt) obj.metadata.createdAt = new Date(obj.metadata.createdAt);
     if (obj.metadata?.updatedAt) obj.metadata.updatedAt = new Date(obj.metadata.updatedAt);

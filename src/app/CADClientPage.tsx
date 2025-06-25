@@ -390,6 +390,15 @@ export default function CADClientPage() {
     setModel(newModel);
   };
 
+  const handleProviderSettingsChange = (settings: {
+    baseUrl: string;
+    useToolCalling: boolean;
+  }) => {
+    // Provider settings are stored in the conversation store
+    // and will be used by the AI agent automatically
+    console.log('Provider settings updated:', settings);
+  };
+
   const handleNewChat = async () => {
     // Create a fresh conversation with a greeting message
     const newConversation: Conversation = {
@@ -622,6 +631,7 @@ export default function CADClientPage() {
         onClose={() => setShowSettings(false)}
         onApiKeyChange={handleApiKeyChange}
         onModelChange={handleModelChange}
+        onProviderSettingsChange={handleProviderSettingsChange}
       />
 
       {/* Chat History Modal */}

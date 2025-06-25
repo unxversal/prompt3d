@@ -336,6 +336,7 @@ function CADScene() {
 function CameraSetup() {
   const [viewportSettings] = useAtom(viewportSettingsAtom);
   const activeTool = useAtomValue(activeToolAtom);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   const setOrbitControlsRef = useSetAtom(orbitControlsRefAtom);
 

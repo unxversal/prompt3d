@@ -15,6 +15,8 @@ interface ConversationDB extends DBSchema {
       model?: string;
       theme?: string;
       collapsed?: boolean;
+      baseUrl?: string;
+      useToolCalling?: boolean;
     };
   };
 }
@@ -144,6 +146,36 @@ class ConversationStore {
     const existing = await this.db.get('settings', 'ui-settings');
     await this.db.put('settings', {
       key: 'ui-settings',
+      ...existing,
+      ...settings,
+    });
+  }
+
+  // Provider settings management
+  async getProviderSettings(): Promise<{
+    baseUrl: string;
+    useToolCalling: boolean;
+  }> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const settings = await this.db.get('settings', 'provider-settings');
+    return {
+      baseUrl: settings?.baseUrl || 'https://openrouter.ai/api/v1',
+      useToolCalling: settings?.useToolCalling ?? true,
+    };
+  }
+
+  async setProviderSettings(settings: {
+    baseUrl?: string;
+    useToolCalling?: boolean;
+  }): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const existing = await this.db.get('settings', 'provider-settings');
+    await this.db.put('settings', {
+      key: 'provider-settings',
       ...existing,
       ...settings,
     });

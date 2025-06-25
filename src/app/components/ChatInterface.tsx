@@ -10,7 +10,8 @@ import {
   Bell,
   Play,
   CheckSquare,
-  Zap
+  Zap,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
@@ -50,6 +51,7 @@ export default function ChatInterface({
     plan: undefined
   });
   const [agent, setAgent] = useState<AIAgent | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
 
@@ -64,19 +66,24 @@ export default function ChatInterface({
 
   const loadOrCreateConversation = useCallback(async () => {
     try {
+      console.log('🔄 Loading or creating conversation...');
       const conversations = await conversationStore.getAllConversations();
+      console.log('📚 Found conversations:', conversations.length);
+      
       const latest = conversations[conversations.length - 1];
       
       if (latest) {
+        console.log('📖 Loading latest conversation:', latest.id, 'with', latest.messages.length, 'messages');
         setCurrentConversation(latest);
       } else {
+        console.log('🆕 Creating new conversation with greeting...');
         const newConversation: Conversation = {
           id: generateId(),
           title: 'New CAD Session',
           messages: [{
             id: generateId(),
             role: 'assistant',
-            content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll analyze your request, create a plan, and generate the code for you.",
+            content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll generate the code for you.",
             timestamp: new Date(),
           }],
           createdAt: new Date(),
@@ -85,9 +92,10 @@ export default function ChatInterface({
         
         await conversationStore.saveConversation(newConversation);
         setCurrentConversation(newConversation);
+        console.log('✅ Created new conversation:', newConversation.id);
       }
     } catch (error) {
-      console.error('Failed to load conversation:', error);
+      console.error('❌ Failed to load conversation:', error);
       toast.error('Failed to load conversation history');
     }
   }, []);
@@ -96,21 +104,18 @@ export default function ChatInterface({
   useEffect(() => {
     console.log('🔄 Conversation effect triggered:', { 
       hasExternalConversation: !!externalConversation, 
-      currentConversationId: currentConversation?.id 
+      currentConversationId: currentConversation?.id,
+      externalConversationId: externalConversation?.id
     });
     
-    if (externalConversation) {
-      // Use external conversation if provided
-      if (!currentConversation || currentConversation.id !== externalConversation.id) {
-        console.log('📝 Setting external conversation:', externalConversation.id);
-        setCurrentConversation(externalConversation);
-      }
-    } else if (!currentConversation) {
-      // Only load/create if we don't have a current conversation
+    if (externalConversation && (!currentConversation || currentConversation.id !== externalConversation.id)) {
+      console.log('📝 Setting external conversation:', externalConversation.id);
+      setCurrentConversation(externalConversation);
+    } else if (!externalConversation && !currentConversation) {
       console.log('🆕 Loading or creating new conversation');
       loadOrCreateConversation();
     }
-  }, [externalConversation, loadOrCreateConversation, currentConversation]);
+  }, [externalConversation, currentConversation, loadOrCreateConversation]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -156,6 +161,10 @@ export default function ChatInterface({
     setMessage('');
     setAgentState(prev => ({ ...prev, isProcessing: true }));
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       // Process the user message with the AI agent
       await agent.processUserMessage(
@@ -168,6 +177,18 @@ export default function ChatInterface({
         handleFunctionCall
       );
     } catch (error) {
+      if (controller.signal.aborted) {
+        console.log('🛑 AI processing cancelled by user');
+        await addMessageToConversation({
+          id: generateId(),
+          role: 'assistant',
+          content: 'Task cancelled by user.',
+          timestamp: new Date(),
+          metadata: { status: 'error' }
+        });
+        return;
+      }
+
       console.error('AI processing error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
@@ -185,7 +206,18 @@ export default function ChatInterface({
       });
     } finally {
       setAgentState(prev => ({ ...prev, isProcessing: false, currentFunction: undefined }));
+      setAbortController(null);
     }
+  };
+
+  const handleCancelConversation = () => {
+    console.log('🛑 Cancelling conversation...');
+    if (abortController) {
+      abortController.abort();
+    }
+    setAgentState(prev => ({ ...prev, isProcessing: false, currentFunction: undefined }));
+    setAbortController(null);
+    toast.info('Conversation cancelled');
   };
 
   // Handle Enter key for message sending
@@ -609,11 +641,13 @@ export default function ChatInterface({
             onKeyDown={handleKeyDown}
           />
           <button 
-            type="submit" 
-            className={styles.chatSubmit}
-            disabled={!message.trim() || agentState.isProcessing}
+            type={agentState.isProcessing ? "button" : "submit"}
+            className={`${styles.chatSubmit} ${agentState.isProcessing ? styles.processingButton : ''}`}
+            disabled={!message.trim()}
+            onClick={agentState.isProcessing ? handleCancelConversation : undefined}
+            title={agentState.isProcessing ? "Cancel conversation" : "Send message"}
           >
-            {agentState.isProcessing ? <Loader size={16} className={styles.spinning} /> : <Send size={16} />}
+            {agentState.isProcessing ? <X size={16} /> : <Send size={16} />}
           </button>
         </form>
         {agentState.currentFunction && (
@@ -629,6 +663,12 @@ export default function ChatInterface({
       </div>
     );
   }
+
+  console.log('💬 Rendering messages:', { 
+    messageCount: currentConversation?.messages?.length || 0,
+    conversationId: currentConversation?.id,
+    state 
+  });
 
   const messagesContent = (
     <div className={styles.chatMessages}>
@@ -649,11 +689,13 @@ export default function ChatInterface({
         onKeyDown={handleKeyDown}
       />
       <button 
-        type="submit" 
-        className={styles.chatSubmitButton}
-        disabled={!message.trim() || agentState.isProcessing}
+        type={agentState.isProcessing ? "button" : "submit"}
+        className={`${styles.chatSubmitButton} ${agentState.isProcessing ? styles.processingButton : ''}`}
+        disabled={!message.trim()}
+        onClick={agentState.isProcessing ? handleCancelConversation : undefined}
+        title={agentState.isProcessing ? "Cancel conversation" : "Send message"}
       >
-        {agentState.isProcessing ? <Loader size={16} className={styles.spinning} /> : <Send size={16} />}
+        {agentState.isProcessing ? <X size={16} /> : <Send size={16} />}
       </button>
               {agentState.currentFunction && (
           <div className={styles.functionStatusInline}>

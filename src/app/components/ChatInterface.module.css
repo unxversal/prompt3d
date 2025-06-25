@@ -943,4 +943,32 @@
   background: transparent;
   padding: 0;
   border: none;
+}
+
+/* Processing button styling */
+.processingButton {
+  background: #ef4444 !important;
+  border-color: #dc2626 !important;
+  color: white !important;
+  transition: all 0.3s ease !important;
+}
+
+.processingButton:hover {
+  background: #dc2626 !important;
+  border-color: #b91c1c !important;
+  transform: scale(1.05);
+}
+
+/* Spinning animation for loaders */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 } 

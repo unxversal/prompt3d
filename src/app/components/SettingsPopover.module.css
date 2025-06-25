@@ -352,7 +352,7 @@
 }
 
 .note {
-  font-style: italic;
+  font-size: 12px;
   opacity: 0.8;
 }
 
@@ -487,4 +487,158 @@
 .settingsButton.light:hover {
   background: #f0f0f0;
   border-color: #666666;
+}
+
+/* Provider Grid */
+.providerGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.providerButton {
+  padding: 12px;
+  border: 1px solid;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.dark .providerButton {
+  border-color: #333333;
+  color: #a1a1aa;
+}
+
+.light .providerButton {
+  border-color: #333333;
+  color: #6b7280;
+}
+
+.dark .providerButton:hover:not(:disabled) {
+  background: #333333;
+  color: #ffffff;
+}
+
+.light .providerButton:hover:not(:disabled) {
+  background: #f0f0f0;
+  color: #000000;
+}
+
+.providerButton.active {
+  font-weight: 600;
+}
+
+.dark .providerButton.active {
+  background: #333333;
+  color: #ffffff;
+  border-color: #666666;
+}
+
+.light .providerButton.active {
+  background: #f0f0f0;
+  color: #000000;
+  border-color: #666666;
+}
+
+.providerButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Toggle Group */
+.toggleGroup {
+  display: flex;
+  gap: 0;
+  border: 1px solid;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.dark .toggleGroup {
+  border-color: #333333;
+}
+
+.light .toggleGroup {
+  border-color: #333333;
+}
+
+.toggleGroup .toggleButton {
+  position: relative;
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggleGroup .toggleButton:not(:last-child) {
+  border-right: 1px solid;
+}
+
+.dark .toggleGroup .toggleButton:not(:last-child) {
+  border-right-color: #333333;
+}
+
+.light .toggleGroup .toggleButton:not(:last-child) {
+  border-right-color: #333333;
+}
+
+.dark .toggleGroup .toggleButton {
+  color: #a1a1aa;
+}
+
+.light .toggleGroup .toggleButton {
+  color: #6b7280;
+}
+
+.dark .toggleGroup .toggleButton:hover:not(:disabled) {
+  background: #333333;
+  color: #ffffff;
+}
+
+.light .toggleGroup .toggleButton:hover:not(:disabled) {
+  background: #f0f0f0;
+  color: #000000;
+}
+
+.toggleGroup .toggleButton.active {
+  font-weight: 600;
+}
+
+.dark .toggleGroup .toggleButton.active {
+  background: #333333;
+  color: #ffffff;
+}
+
+.light .toggleGroup .toggleButton.active {
+  background: #f0f0f0;
+  color: #000000;
+}
+
+.toggleGroup .toggleButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Input Labels */
+.inputLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.dark .inputLabel {
+  color: #a1a1aa;
+}
+
+.light .inputLabel {
+  color: #6b7280;
 } 

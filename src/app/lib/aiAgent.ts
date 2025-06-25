@@ -1,5 +1,6 @@
 import { REPLICAD_DOCS } from './replicadDocs';
 import { AI_FUNCTIONS, AIContext, FunctionCall, Screenshot } from '../types/ai';
+import { conversationStore } from './conversationStore';
 
 // Define types for our API responses
 interface ChatCompletionResponse {
@@ -130,7 +131,11 @@ ${REPLICAD_DOCS}
 3. **Notify** user of key insights or considerations if needed
 4. **Complete** with idle when finished
 
-Remember: Your code comments are your main teaching tool. Make them detailed and educational to help users understand both the code and CAD design principles.`;
+**Important Guidelines:**
+- Keep JSON responses concise to prevent truncation
+- Use extensive code comments for education rather than long explanations
+- Focus on direct implementation rather than verbose descriptions
+- Remember: Your code comments are your main teaching tool`;
   }
 
   async processUserMessage(
@@ -140,6 +145,9 @@ Remember: Your code comments are your main teaching tool. Make them detailed and
     if (!this.apiKey) {
       throw new Error('API key not set');
     }
+
+    // Get provider settings
+    const providerSettings = await conversationStore.getProviderSettings();
 
     // Capture screenshots if we have the capability
     let screenshots: Screenshot[] = [];
@@ -221,12 +229,15 @@ Please implement this request directly using the available tools. Use write_code
             apiKey: this.apiKey,
             model: this.model,
             messages,
-            response_format: {
+            baseUrl: providerSettings.baseUrl,
+            useToolCalling: providerSettings.useToolCalling,
+            tools: providerSettings.useToolCalling ? AI_FUNCTIONS : undefined,
+            response_format: !providerSettings.useToolCalling ? {
               type: 'json_schema',
               json_schema: responseSchema,
-            },
+            } : undefined,
             temperature: 0.9,
-            max_tokens: 4000,
+            max_tokens: 2000,
           }),
         });
 
@@ -253,6 +264,38 @@ Please implement this request directly using the available tools. Use write_code
         if (message.content) {
           console.log('Processing message content:', message.content);
           try {
+            // Check if the content looks like truncated JSON
+            if (message.content.trim().startsWith('{') && !message.content.trim().endsWith('}')) {
+              console.warn('Content appears to be truncated JSON, attempting to recover...');
+              
+              // Try to find a complete function call pattern within the truncated content
+              const functionCallMatch = message.content.match(/"name":\s*"(\w+)".*?"arguments":\s*{/);
+              if (functionCallMatch) {
+                const functionName = functionCallMatch[1];
+                console.log(`Found truncated function call: ${functionName}, treating as notify_user`);
+                
+                // Treat truncated responses as notifications with error info
+                await onFunctionCall({
+                  name: 'notify_user',
+                  arguments: {
+                    message: `I encountered an issue with my response (truncated JSON). The function I was trying to call was "${functionName}". Please try rephrasing your request or try again.`,
+                    type: 'error',
+                  },
+                });
+                continue;
+              } else {
+                console.warn('Could not identify function in truncated JSON, notifying user of error');
+                await onFunctionCall({
+                  name: 'notify_user',
+                  arguments: {
+                    message: 'I encountered a technical issue with my response (incomplete data). Please try your request again.',
+                    type: 'error',
+                  },
+                });
+                continue;
+              }
+            }
+            
             const parsed = JSON.parse(message.content.trim());
             console.log('Successfully parsed JSON:', parsed);
 
@@ -265,6 +308,20 @@ Please implement this request directly using the available tools. Use write_code
             }
           } catch (parseError) {
             console.warn('Failed to parse as JSON:', parseError);
+            
+            // If the content starts with { but failed to parse, it's likely truncated
+            if (message.content.trim().startsWith('{')) {
+              console.error('Detected malformed/truncated JSON response');
+              await onFunctionCall({
+                name: 'notify_user',
+                arguments: {
+                  message: 'I encountered a technical issue with my response (malformed JSON). Please try your request again.',
+                  type: 'error',
+                },
+              });
+              continue;
+            }
+            
             // Try to parse raw function call format like "send_plan({...})"
             const functionCallMatch = message.content.match(/(\w+)\(({[\s\S]*})\)/);
             if (functionCallMatch) {
@@ -279,14 +336,15 @@ Please implement this request directly using the available tools. Use write_code
                 console.log('Successfully parsed function call pattern');
               } catch (parseError) {
                 console.warn('Failed to parse function call arguments:', parseError);
+                await onFunctionCall({
+                  name: 'notify_user',
+                  arguments: {
+                    message: 'I encountered a parsing error in my response. Please try your request again.',
+                    type: 'error',
+                  },
+                });
+                continue;
               }
-            }
-            
-            // If still no actions and content looks like raw JSON, don't render it
-            if (actions.length === 0 && message.content.trim().startsWith('{')) {
-              console.warn('Content appears to be malformed JSON, not rendering in chat');
-              // Don't display malformed JSON in chat
-              continue;
             }
           }
         }

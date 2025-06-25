@@ -12,6 +12,9 @@ export default $config({
   },
   async run() {
     console.log($app.stage);
+
+    const secret = new sst.Secret("AnthropicApiKey");
+
     new sst.aws.Nextjs("Prompt3D", {
       domain: $app.stage === "production" 
         ? {
@@ -22,6 +25,7 @@ export default $config({
         : {
             name: "dev.prompt3d.co",
           },
+      link: [secret],
     });
   },
 });

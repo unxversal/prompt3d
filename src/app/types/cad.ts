@@ -124,6 +124,7 @@ export type CADTool =
   | 'box'
   | 'cylinder'
   | 'sphere'
+  | 'cone'
   | 'sketch'
   | 'extrude'
   | 'revolve'

@@ -5,6 +5,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "AnthropicApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "Prompt3D": {
       "type": "sst.aws.Nextjs"
       "url": string
