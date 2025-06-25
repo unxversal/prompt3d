@@ -25,22 +25,20 @@ import remarkGfm from 'remark-gfm';
 interface ChatInterfaceProps {
   state: 'panel' | 'overlay' | 'replace';
   currentCode: string;
-  onCodeChange: (code: string) => void;
+  onAgentCodeChange: (code: string) => Promise<void>;
   apiKey: string | null;
   model: string;
   onApiKeyRequired: () => void;
-  onCodeExecute?: () => void; // Added for code execution integration
   currentConversation?: Conversation | null; // Optional external conversation to load
 }
 
 export default function ChatInterface({ 
   state, 
   currentCode, 
-  onCodeChange, 
+  onAgentCodeChange,
   apiKey,
   model,
   onApiKeyRequired,
-  onCodeExecute,
   currentConversation: externalConversation
 }: ChatInterfaceProps) {
   const [message, setMessage] = useState('');
@@ -298,102 +296,85 @@ export default function ChatInterface({
   };
 
   const handleWriteCode = async (call: FunctionCall): Promise<string> => {
-    console.log('📝 handleWriteCode called:', call);
-    const { code, explanation } = call.arguments as {
-      code: string;
-      explanation?: string;
-    };
+    const { code } = call.arguments as { code: string };
 
-    // Update the code in the editor
-    onCodeChange(code);
-    console.log('Code updated in editor, length:', code.length);
-    
-    // Execute the code automatically if handler is provided
-    if (onCodeExecute) {
-      console.log('Executing code...');
-      setTimeout(() => {
-        onCodeExecute();
-      }, 100);
+    if (typeof code !== 'string') {
+      throw new Error('Invalid arguments: `code` must be a string.');
     }
-
-    // Notification for collapsed mode
-    if (agentState.isCollapsed) {
-      toast.success('Code generated', {
-        description: explanation || 'New code generated and applied',
-        icon: <Code size={16} />
-      });
-    }
-
-    // Add simplified message to conversation
-    await addMessageToConversation({
-      id: generateId(),
-      role: 'assistant',
-      content: `🔧 **C3D Generated New Code**\n\n${explanation || 'I\'ve generated new code for your model.'}\n\nThe code has been applied to the editor and executed automatically.`,
-      timestamp: new Date(),
-      metadata: { 
-        status: 'completed' as const,
-        functionCall: call
-      }
-    });
-
-    console.log('✅ handleWriteCode completed');
-    return 'Code updated successfully';
-  };
-
-  const handleEditCode = async (call: FunctionCall): Promise<string> => {
-    console.log('✏️ handleEditCode called:', call);
-    const { oldCode, newCode, explanation } = call.arguments as {
-      oldCode: string;
-      newCode: string;
-      explanation?: string;
-    };
 
     try {
-      const updatedCode = applyCodeDiff(currentCode, oldCode, newCode);
-      onCodeChange(updatedCode);
-      console.log('Code diff applied successfully');
+      await onAgentCodeChange(code);
       
-      // Execute the code automatically if handler is provided
-      if (onCodeExecute) {
-        console.log('Executing updated code...');
-        setTimeout(() => {
-          onCodeExecute();
-        }, 100);
-      }
-
-      // Notification for collapsed mode
-      if (agentState.isCollapsed) {
-        toast.success('Code edited', {
-          description: explanation || 'Code modifications applied',
-          icon: <Edit3 size={16} />
-        });
-      }
-
-      // Add simplified message to conversation
+      const successMessage = 'New code has been written and executed successfully.';
+      
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
-        content: `🔧 **C3D Edited Code**\n\n${explanation || 'I\'ve updated your code with targeted changes.'}\n\nThe changes have been applied to the editor and executed automatically.`,
+        content: successMessage,
         timestamp: new Date(),
-        metadata: { 
-          status: 'completed' as const,
+        metadata: {
+          status: 'completed',
           functionCall: call
         }
       });
-
-      console.log('✅ handleEditCode completed');
-      return 'Code diff applied successfully';
+      
+      return successMessage;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to apply code diff';
-      console.error('❌ handleEditCode error:', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during execution';
+      await addMessageToConversation({
+        id: generateId(),
+        role: 'assistant',
+        content: `Code execution failed: ${errorMessage}`,
+        timestamp: new Date(),
+        metadata: {
+          status: 'error',
+          functionCall: call
+        }
+      });
+      // Re-throw to be caught by the main processing loop and sent to the LLM
+      throw new Error(`Execution failed: ${errorMessage}`);
+    }
+  };
+
+  const handleEditCode = async (call: FunctionCall): Promise<string> => {
+    const { old_code, new_code } = call.arguments as { old_code: string; new_code: string };
+
+    if (typeof old_code !== 'string' || typeof new_code !== 'string') {
+      throw new Error('Invalid arguments: `old_code` and `new_code` must be strings.');
+    }
+
+    try {
+      const updatedCode = applyCodeDiff(currentCode, old_code, new_code);
+      await onAgentCodeChange(updatedCode);
+
+      const successMessage = 'Code has been edited and executed successfully.';
       
-      if (agentState.isCollapsed) {
-        toast.error('Code edit failed', {
-          description: errorMessage
-        });
-      }
+      await addMessageToConversation({
+        id: generateId(),
+        role: 'assistant',
+        content: successMessage,
+        timestamp: new Date(),
+        metadata: {
+          status: 'completed',
+          functionCall: call
+        }
+      });
       
-      throw new Error(errorMessage);
+      return successMessage;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during execution or diff application';
+      await addMessageToConversation({
+        id: generateId(),
+        role: 'assistant',
+        content: `Code edit failed: ${errorMessage}`,
+        timestamp: new Date(),
+        metadata: {
+          status: 'error',
+          functionCall: call
+        }
+      });
+      // Re-throw to be caught by the main processing loop and sent to the LLM
+      throw new Error(`Edit failed: ${errorMessage}`);
     }
   };
 
@@ -463,14 +444,22 @@ export default function ChatInterface({
           return {
             icon: <Code size={16} />,
             title: 'Code Generated',
-            color: '#10b981',
-            bgColor: 'rgba(16, 185, 129, 0.1)',
-            borderColor: 'rgba(16, 185, 129, 0.3)'
+            color: '#3b82f6',
+            bgColor: 'rgba(59, 130, 246, 0.15)',
+            borderColor: 'rgba(59, 130, 246, 0.3)'
           };
         case 'edit_code':
           return {
             icon: <Edit3 size={16} />,
-            title: 'Code Modified',
+            title: 'Code Edited',
+            color: '#3b82f6',
+            bgColor: 'rgba(59, 130, 246, 0.15)',
+            borderColor: 'rgba(59, 130, 246, 0.3)'
+          };
+        case 'send_plan':
+          return {
+            icon: <Zap size={16} />,
+            title: 'Planning',
             color: '#f59e0b',
             bgColor: 'rgba(245, 158, 11, 0.1)',
             borderColor: 'rgba(245, 158, 11, 0.3)'
@@ -488,7 +477,7 @@ export default function ChatInterface({
             icon: <CheckSquare size={16} />,
             title: 'Task Completed',
             color: '#059669',
-            bgColor: 'rgba(5, 150, 105, 0.1)',
+            bgColor: 'rgba(5, 150, 105, 0.15)',
             borderColor: 'rgba(5, 150, 105, 0.3)'
           };
         default:
@@ -540,7 +529,16 @@ export default function ChatInterface({
           <div className={styles.functionArgs}>
             {args.message && (
               <div className={styles.notificationContent}>
-                <span>{String(args.message)}</span>
+                <div className={styles.markdown}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                    }}
+                  >
+                    {String(args.message)}
+                  </ReactMarkdown>
+                </div>
               </div>
             )}
             

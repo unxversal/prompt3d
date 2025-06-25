@@ -181,7 +181,7 @@ export default function CADClientPage() {
   }, [isInitialized]);
 
   // Execute current code
-  const executeCode = useCallback(async () => {
+  const executeCode = useCallback(async (codeToRun: string) => {
     if (isExecuting || !isInitialized) return;
 
     setIsExecuting(true);
@@ -196,7 +196,7 @@ export default function CADClientPage() {
       const { syncGeometries } = await import('replicad-threejs-helper');
 
       // If code is empty or default, use the demo code
-      const codeToExecute = code.trim() === DEFAULT_CODE.trim() || !code.trim() ? `
+      const codeToExecute = codeToRun.trim() === DEFAULT_CODE.trim() || !codeToRun.trim() ? `
         // Default demo shapes
         const cylinder = drawCircle(20).sketchOnPlane().extrude(50);
         const roundedRect = drawRoundedRectangle(40, 30, 5)
@@ -215,7 +215,7 @@ export default function CADClientPage() {
             edges: roundedRect.meshEdges(),
           }
         ];
-      ` : code;
+      ` : codeToRun;
 
       // Remove any static import/export lines to avoid syntax errors inside AsyncFunction
       const sanitizedCode = codeToExecute
@@ -265,35 +265,10 @@ export default function CADClientPage() {
           opacity: 1,
         }));
       } catch (codeError) {
+        // Instead of falling back to demo shapes, re-throw the error
+        // so it can be caught by the agent's function handler.
         console.error('Code execution error:', codeError);
-        
-        // Fallback to demo shapes if user code fails
-        const cylinder = replicad.drawCircle(20).sketchOnPlane().extrude(50);
-        const roundedRect = replicad.drawRoundedRectangle(40, 30, 5)
-          .sketchOnPlane()
-          .extrude(10);
-
-        meshedShapes = [
-          {
-            name: 'Cylinder (Demo)',
-            faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-            edges: cylinder.meshEdges(),
-          },
-          {
-            name: 'Rounded Rectangle (Demo)',
-            faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-            edges: roundedRect.meshEdges(),
-          }
-        ];
-
-        originalShapes = [
-          { name: 'Cylinder (Demo)', shape: cylinder, color: '#667eea', opacity: 1 },
-          { name: 'Rounded Rectangle (Demo)', shape: roundedRect, color: '#f093fb', opacity: 1 }
-        ];
-
-        toast.warning('Code execution failed, showing demo shapes', {
-          description: codeError instanceof Error ? codeError.message : 'Unknown error'
-        });
+        throw codeError;
       }
 
       // Use replicad-threejs-helper to create Three.js geometries
@@ -331,17 +306,19 @@ export default function CADClientPage() {
         id: toastId,
         description: errorMessage.slice(0, 80) + (errorMessage.length > 80 ? '...' : ''),
       });
+      // Re-throw so the agent's promise can reject
+      throw err;
     } finally {
       setIsExecuting(false);
     }
-  }, [isExecuting, isInitialized, code]);
+  }, [isExecuting, isInitialized]);
 
   // Auto-execute once after initialization
   useEffect(() => {
     if (isInitialized && shapes.length === 0) {
-      executeCode();
+      executeCode(code);
     }
-  }, [isInitialized, executeCode, shapes.length]);
+  }, [isInitialized, executeCode, shapes.length, code]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -350,30 +327,25 @@ export default function CADClientPage() {
         event.preventDefault();
         // Disable Cmd+Enter when chat replaces the editor
         if (isInitialized && chatState !== 'replace') {
-          executeCode();
+          executeCode(code);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isInitialized, executeCode, chatState]);
+  }, [isInitialized, executeCode, chatState, code]);
 
-  // Set up global function for AI agents
-  useEffect(() => {
-    window.setCADCode = (newCode: string) => {
-      setCode(newCode);
-      if (isInitialized) {
-        executeCode();
-      }
-    };
-
-    return () => {
-      delete window.setCADCode;
-    };
-  }, [isInitialized, executeCode]);
-
-
+  const handleAgentCodeChange = async (newCode: string): Promise<void> => {
+    // This function will be called by the ChatInterface when the agent
+    // provides new code. It updates the state and then executes.
+    setCode(newCode);
+    
+    // We need to ensure the `executeCode` function runs with the `newCode`.
+    // By passing it directly, we avoid issues with stale state.
+    // The `try/catch` is handled inside the ChatInterface's function handler.
+    await executeCode(newCode);
+  };
 
   const handleExportSTEP = useCallback(async () => {
     if (shapes.length === 0 || replicadShapes.length === 0) {
@@ -559,7 +531,7 @@ export default function CADClientPage() {
                 <>
                   <button
                     className={styles.runButton}
-                    onClick={executeCode}
+                    onClick={() => executeCode(code)}
                     disabled={isExecuting}
                   >
                     <Play size={14} style={{ marginRight: '4px' }} />
@@ -621,16 +593,16 @@ export default function CADClientPage() {
             <ChatInterface 
               state="replace" 
               currentCode={code}
-              onCodeChange={setCode}
+              onAgentCodeChange={handleAgentCodeChange}
               apiKey={apiKey}
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
-              onCodeExecute={executeCode}
               currentConversation={currentConversation}
             />
           ) : (
             <div className={styles.sandpackContainer}>
               <SandpackProvider
+                key={code}
                 template="vanilla-ts"
                 theme={amethyst}
                 files={{
@@ -663,11 +635,10 @@ export default function CADClientPage() {
             <ChatInterface 
               state="overlay"
               currentCode={code}
-              onCodeChange={setCode}
+              onAgentCodeChange={handleAgentCodeChange}
               apiKey={apiKey}
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
-              onCodeExecute={executeCode}
               currentConversation={currentConversation}
             />
           )}
@@ -678,11 +649,10 @@ export default function CADClientPage() {
           <ChatInterface 
             state="panel"
             currentCode={code}
-            onCodeChange={setCode}
+            onAgentCodeChange={handleAgentCodeChange}
             apiKey={apiKey}
             model={model}
             onApiKeyRequired={handleApiKeyRequired}
-            onCodeExecute={executeCode}
             currentConversation={currentConversation}
           />
         )}
