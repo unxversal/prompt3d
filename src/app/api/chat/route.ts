@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { Resource } from 'sst';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const isAnthropic = baseUrl.includes('anthropic.com');
     if (isAnthropic && apiKey === 'supersecretkeybypass') {
-        apiKey = process.env.ANTHROPIC_API_KEY;
+        apiKey = Resource.AnthropicApiKey.value;
     }
 
     console.log('Received model', model)
