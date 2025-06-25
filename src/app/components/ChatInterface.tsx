@@ -117,7 +117,7 @@ export default function ChatInterface({
       hasInitializedConversation.current = true;
       loadOrCreateConversation();
     }
-  }, [externalConversation, currentConversation]);
+  }, [externalConversation, currentConversation, loadOrCreateConversation ]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
