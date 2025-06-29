@@ -9,8 +9,8 @@ import {
   Calendar,
   Search,
   Plus,
-  Square,
-  CheckSquare
+  Circle,
+  CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { conversationStore } from '../lib/conversationStore';
@@ -334,72 +334,77 @@ export default function ChatHistoryModal({
       <div className={styles.overlay} onClick={onClose} />
       <div className={styles.modal}>
         <div className={styles.header}>
-          <div className={styles.headerContent}>
-            <MessageCircle size={20} />
-            <h2>Chat History</h2>
+          <div className={styles.headerRow}>
+            <div className={styles.headerContent}>
+              <MessageCircle size={20} />
+              <h2>Chat History</h2>
+            </div>
+            <div className={styles.headerActions}>
+              {conversations.length > 0 && (
+                <>
+                  <button
+                    onClick={toggleSelectionMode}
+                    className={`${styles.selectionButton} ${selectionMode ? styles.active : ''}`}
+                    title={selectionMode ? "Cancel selection" : "Select conversations"}
+                  >
+                    {selectionMode ? <X size={16} /> : <CheckCircle size={16} />}
+                    {selectionMode ? "Cancel" : "Select"}
+                  </button>
+                  <button
+                    onClick={handleDeleteAll}
+                    className={styles.deleteAllButton}
+                    title="Delete all conversations"
+                  >
+                    <Trash2 size={16} />
+                    Delete All
+                  </button>
+                </>
+              )}
+              <button
+                onClick={onNewChat}
+                className={styles.newChatButton}
+                title="Start new chat"
+              >
+                <Plus size={16} />
+                New Chat
+              </button>
+              <button onClick={onClose} className={styles.closeButton}>
+                <X size={16} />
+              </button>
+            </div>
           </div>
-          <div className={styles.headerActions}>
-            {conversations.length > 0 && (
-              <>
+          
+          {selectionMode && (
+            <div className={styles.selectionRow}>
+              <div className={styles.selectionActions}>
                 <button
-                  onClick={toggleSelectionMode}
-                  className={`${styles.selectionButton} ${selectionMode ? styles.active : ''}`}
-                  title={selectionMode ? "Cancel selection" : "Select conversations"}
+                  onClick={selectAll}
+                  className={styles.selectAllButton}
+                  title="Select all"
                 >
-                  {selectionMode ? <X size={16} /> : <CheckSquare size={16} />}
-                  {selectionMode ? "Cancel" : "Select"}
+                  <CheckCircle size={16} />
+                  All
                 </button>
-                {selectionMode && (
-                  <>
-                    <button
-                      onClick={selectAll}
-                      className={styles.selectAllButton}
-                      title="Select all"
-                    >
-                      <CheckSquare size={16} />
-                      All
-                    </button>
-                    <button
-                      onClick={selectNone}
-                      className={styles.selectNoneButton}
-                      title="Select none"
-                    >
-                      <Square size={16} />
-                      None
-                    </button>
-                    <button
-                      onClick={handleDeleteSelected}
-                      className={styles.deleteSelectedButton}
-                      disabled={selectedIds.size === 0}
-                      title={`Delete ${selectedIds.size} selected`}
-                    >
-                      <Trash2 size={16} />
-                      Delete ({selectedIds.size})
-                    </button>
-                  </>
-                )}
                 <button
-                  onClick={handleDeleteAll}
-                  className={styles.deleteAllButton}
-                  title="Delete all conversations"
+                  onClick={selectNone}
+                  className={styles.selectNoneButton}
+                  title="Select none"
+                >
+                  <Circle size={16} />
+                  None
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  className={styles.deleteSelectedButton}
+                  disabled={selectedIds.size === 0}
+                  title={`Delete ${selectedIds.size} selected`}
                 >
                   <Trash2 size={16} />
-                  Delete All
+                  Delete ({selectedIds.size})
                 </button>
-              </>
-            )}
-            <button
-              onClick={onNewChat}
-              className={styles.newChatButton}
-              title="Start new chat"
-            >
-              <Plus size={16} />
-              New Chat
-            </button>
-            <button onClick={onClose} className={styles.closeButton}>
-              <X size={16} />
-            </button>
-          </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className={styles.searchContainer}>
@@ -440,20 +445,6 @@ export default function ChatHistoryModal({
             <div className={styles.conversationList}>
               {filteredConversations.map((conversation) => (
                 <div key={conversation.id} className={`${styles.conversationItem} ${selectedIds.has(conversation.id) ? styles.selected : ''}`}>
-                  {selectionMode && (
-                    <div className={styles.selectionCheckbox}>
-                      <button
-                        onClick={() => toggleSelection(conversation.id)}
-                        className={styles.checkboxButton}
-                      >
-                        {selectedIds.has(conversation.id) ? 
-                          <CheckSquare size={18} className={styles.checked} /> : 
-                          <Square size={18} />
-                        }
-                      </button>
-                    </div>
-                  )}
-                  
                   <div 
                     className={styles.conversationMain}
                     onClick={() => selectionMode ? toggleSelection(conversation.id) : handleLoadConversation(conversation)}
@@ -496,7 +487,22 @@ export default function ChatHistoryModal({
                     </div>
                   </div>
                   
-                  {!selectionMode && (
+                  {selectionMode ? (
+                    <div className={styles.selectionCheckbox}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelection(conversation.id);
+                        }}
+                        className={styles.checkboxButton}
+                      >
+                        {selectedIds.has(conversation.id) ? 
+                          <CheckCircle size={18} className={styles.checked} /> : 
+                          <Circle size={18} />
+                        }
+                      </button>
+                    </div>
+                  ) : (
                     <div className={styles.conversationActions}>
                       <button
                         onClick={(e) => {
