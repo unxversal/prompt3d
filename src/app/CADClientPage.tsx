@@ -490,9 +490,13 @@ export default function CADClientPage() {
     if (foundCode) {
       // Load the code snapshot from history
       setCode(foundCode);
+      // Execute the code to update the CAD viewer
+      executeCode(foundCode);
     } else {
       // Conversation has no generated code yet – reset to default template
       setCode(DEFAULT_CODE);
+      // Execute the default code to show something in the viewer
+      executeCode(DEFAULT_CODE);
     }
     
     // Open chat panel
