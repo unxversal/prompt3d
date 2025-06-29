@@ -384,9 +384,6 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
               )}
             </div>
           </div>
-
-          {/* OpenRouter Specific Settings */}
-          
         </div>
 
         <div className={styles.footer}>

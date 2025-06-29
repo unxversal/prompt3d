@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const isAnthropic = baseUrl.includes('anthropic.com');
-    if (isAnthropic && apiKey === 'supersecretkeybypass') {
+    if (isAnthropic && apiKey === Resource.BypassPassword.value) {
         apiKey = Resource.AnthropicApiKey.value;
     }
 

@@ -641,4 +641,24 @@
 
 .light .inputLabel {
   color: #6b7280;
+}
+
+.deleteAllButton {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.deleteAllButton:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.deleteAllButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 } 

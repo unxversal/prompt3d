@@ -71,6 +71,13 @@ class ConversationStore {
     await this.db.delete('conversations', id);
   }
 
+  async deleteAllChats(): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.clear('conversations');
+  }
+
   async addMessageToConversation(conversationId: string, message: Message): Promise<void> {
     const conversation = await this.getConversation(conversationId);
     if (!conversation) throw new Error('Conversation not found');

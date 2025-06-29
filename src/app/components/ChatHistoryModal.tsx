@@ -8,7 +8,9 @@ import {
   Download, 
   Calendar,
   Search,
-  Plus
+  Plus,
+  Square,
+  CheckSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { conversationStore } from '../lib/conversationStore';
@@ -39,6 +41,10 @@ export default function ChatHistoryModal({
   const [editingTitle, setEditingTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false);
+  const [confirmingDeleteSelected, setConfirmingDeleteSelected] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -120,11 +126,14 @@ export default function ChatHistoryModal({
     try {
       await conversationStore.deleteConversation(confirmingDeleteId);
       setConversations(prev => prev.filter(c => c.id !== confirmingDeleteId));
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(confirmingDeleteId);
+        return newSet;
+      });
       toast.success('Conversation deleted successfully');
       
       // If the currently loaded chat was deleted, start a new one
-      // This part of the logic might need to be stateful from parent
-      // For now, we just call onNewChat to be safe.
       onNewChat();
 
     } catch (error) {
@@ -242,6 +251,82 @@ export default function ChatHistoryModal({
     return 'No messages';
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setConfirmingDeleteSelected(true);
+  };
+
+  const confirmDeleteSelected = async () => {
+    try {
+      const deletePromises = Array.from(selectedIds).map(id => 
+        conversationStore.deleteConversation(id)
+      );
+      await Promise.all(deletePromises);
+      
+      setConversations(prev => prev.filter(c => !selectedIds.has(c.id)));
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast.success(`${selectedIds.size} conversations deleted successfully`);
+      
+      // If we deleted all conversations, start a new one
+      if (selectedIds.size === conversations.length) {
+        onNewChat();
+      }
+    } catch (error) {
+      console.error('Failed to delete selected conversations:', error);
+      toast.error('Failed to delete selected conversations');
+    } finally {
+      setConfirmingDeleteSelected(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    setConfirmingDeleteAll(true);
+  };
+
+  const confirmDeleteAll = async () => {
+    try {
+      await conversationStore.deleteAllChats();
+      setConversations([]);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast.success('All conversations deleted successfully');
+      onNewChat();
+    } catch (error) {
+      console.error('Failed to delete all conversations:', error);
+      toast.error('Failed to delete all conversations');
+    } finally {
+      setConfirmingDeleteAll(false);
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(filteredConversations.map(c => c.id)));
+  };
+
+  const selectNone = () => {
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (!selectionMode) {
+      setSelectedIds(new Set());
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -254,6 +339,55 @@ export default function ChatHistoryModal({
             <h2>Chat History</h2>
           </div>
           <div className={styles.headerActions}>
+            {conversations.length > 0 && (
+              <>
+                <button
+                  onClick={toggleSelectionMode}
+                  className={`${styles.selectionButton} ${selectionMode ? styles.active : ''}`}
+                  title={selectionMode ? "Cancel selection" : "Select conversations"}
+                >
+                  {selectionMode ? <X size={16} /> : <CheckSquare size={16} />}
+                  {selectionMode ? "Cancel" : "Select"}
+                </button>
+                {selectionMode && (
+                  <>
+                    <button
+                      onClick={selectAll}
+                      className={styles.selectAllButton}
+                      title="Select all"
+                    >
+                      <CheckSquare size={16} />
+                      All
+                    </button>
+                    <button
+                      onClick={selectNone}
+                      className={styles.selectNoneButton}
+                      title="Select none"
+                    >
+                      <Square size={16} />
+                      None
+                    </button>
+                    <button
+                      onClick={handleDeleteSelected}
+                      className={styles.deleteSelectedButton}
+                      disabled={selectedIds.size === 0}
+                      title={`Delete ${selectedIds.size} selected`}
+                    >
+                      <Trash2 size={16} />
+                      Delete ({selectedIds.size})
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={handleDeleteAll}
+                  className={styles.deleteAllButton}
+                  title="Delete all conversations"
+                >
+                  <Trash2 size={16} />
+                  Delete All
+                </button>
+              </>
+            )}
             <button
               onClick={onNewChat}
               className={styles.newChatButton}
@@ -305,10 +439,24 @@ export default function ChatHistoryModal({
           ) : (
             <div className={styles.conversationList}>
               {filteredConversations.map((conversation) => (
-                <div key={conversation.id} className={styles.conversationItem}>
+                <div key={conversation.id} className={`${styles.conversationItem} ${selectedIds.has(conversation.id) ? styles.selected : ''}`}>
+                  {selectionMode && (
+                    <div className={styles.selectionCheckbox}>
+                      <button
+                        onClick={() => toggleSelection(conversation.id)}
+                        className={styles.checkboxButton}
+                      >
+                        {selectedIds.has(conversation.id) ? 
+                          <CheckSquare size={18} className={styles.checked} /> : 
+                          <Square size={18} />
+                        }
+                      </button>
+                    </div>
+                  )}
+                  
                   <div 
                     className={styles.conversationMain}
-                    onClick={() => handleLoadConversation(conversation)}
+                    onClick={() => selectionMode ? toggleSelection(conversation.id) : handleLoadConversation(conversation)}
                   >
                     <div className={styles.conversationInfo}>
                       {editingId === conversation.id ? (
@@ -348,48 +496,51 @@ export default function ChatHistoryModal({
                     </div>
                   </div>
                   
-                  <div className={styles.conversationActions}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadModel(conversation);
-                      }}
-                      className={styles.actionButton}
-                      title="Download model code"
-                    >
-                      <Download size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(conversation);
-                      }}
-                      className={styles.actionButton}
-                      title="Rename conversation"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDuplicate(conversation);
-                      }}
-                      className={styles.actionButton}
-                      title="Duplicate conversation"
-                    >
-                      <Copy size={14} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(conversation.id);
-                      }}
-                      className={styles.actionButton}
-                      title="Delete conversation"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                  {!selectionMode && (
+                    <div className={styles.conversationActions}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadModel(conversation);
+                        }}
+                        className={styles.actionButton}
+                        title="Download model code"
+                      >
+                        <Download size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditing(conversation);
+                        }}
+                        className={styles.actionButton}
+                        title="Rename conversation"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicate(conversation);
+                        }}
+                        className={styles.actionButton}
+                        title="Duplicate conversation"
+                      >
+                        <Copy size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(conversation.id);
+                        }}
+                        className={styles.actionButton}
+                        title="Delete conversation"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                  
                   {confirmingDeleteId === conversation.id && (
                     <div className={styles.confirmDeleteActions}>
                       <span>Delete?</span>
@@ -402,6 +553,41 @@ export default function ChatHistoryModal({
             </div>
           )}
         </div>
+
+        {/* Confirmation modals */}
+        {confirmingDeleteAll && (
+          <div className={styles.confirmModal}>
+            <div className={styles.confirmContent}>
+              <h3>Delete All Conversations?</h3>
+              <p>This will permanently delete all {conversations.length} conversations and cannot be undone.</p>
+              <div className={styles.confirmActions}>
+                <button onClick={() => setConfirmingDeleteAll(false)} className={styles.cancelButton}>
+                  Cancel
+                </button>
+                <button onClick={confirmDeleteAll} className={styles.deleteButton}>
+                  Delete All
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmingDeleteSelected && (
+          <div className={styles.confirmModal}>
+            <div className={styles.confirmContent}>
+              <h3>Delete Selected Conversations?</h3>
+              <p>This will permanently delete {selectedIds.size} selected conversations and cannot be undone.</p>
+              <div className={styles.confirmActions}>
+                <button onClick={() => setConfirmingDeleteSelected(false)} className={styles.cancelButton}>
+                  Cancel
+                </button>
+                <button onClick={confirmDeleteSelected} className={styles.deleteButton}>
+                  Delete Selected
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
