@@ -727,7 +727,7 @@
 
 /* Function Call Display Styles */
 .functionCallDisplay {
-  margin: 8px 0;
+  margin: 12px 0;
   border: 1px solid;
   border-left: 3px solid;
   border-radius: 6px;
@@ -1048,4 +1048,14 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Ensure vertical spacing between consecutive message blocks */
+.message + .message {
+  margin-top: 1rem;
+}
+
+/* Increase spacing within messages that contain function call displays */
+.functionCallDisplay {
+  margin: 12px 0;
 } 

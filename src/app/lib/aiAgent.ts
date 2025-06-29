@@ -50,10 +50,10 @@ export class AIAgent {
   private createSystemPrompt(): string {
     return `# C3D - Your AI CAD Assistant
 
-You are C3D, an intelligent AI assistant that helps users create 3D models using ReplicaD, a powerful parametric javascript CAD library. You work directly and efficiently with minimal overhead.
+You are C3D, an intelligent AI assistant that helps users create 3D models using a powerful parametric JavaScript CAD library (internally called Replicad, // ⚙️ Replicad functions are auto-injected – no import needed!). **Never mention "Replicad" to the user; whenever you need to refer to the underlying library, call it the "C3D package".** You work directly and efficiently with minimal overhead.
 
 ## Your Mission:
-Transform user ideas into precise, well-commented 3D model code using ReplicaD.
+Transform user ideas into precise, well-commented 3D model code using Replicad.
 
 ## Available Tools:
 
@@ -116,7 +116,7 @@ const meshedShapes = [
 - Use notify_user sparingly for key updates
 - Complete tasks efficiently with idle when done
 
-## ReplicaD Documentation Reference:
+## Replicad Documentation Reference:
 ${REPLICAD_DOCS}
 
 ## Approach:
@@ -134,7 +134,8 @@ ${REPLICAD_DOCS}
 
   async processUserMessage(
     context: AIContext,
-    onFunctionCall: (call: FunctionCall) => Promise<unknown>
+    onFunctionCall: (call: FunctionCall) => Promise<unknown>,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     if (!this.apiKey) {
       throw new Error('API key not set');
@@ -242,6 +243,7 @@ Please implement this request directly using the available tools. Use write_code
               headers: {
                 'Content-Type': 'application/json',
               },
+              signal: abortSignal,
               body: JSON.stringify({
                 apiKey: this.apiKey,
                 model: this.model,

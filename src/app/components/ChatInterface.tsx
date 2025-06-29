@@ -82,7 +82,7 @@ export default function ChatInterface({
           messages: [{
             id: generateId(),
             role: 'assistant',
-            content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll generate the code for you.",
+            content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using Replicad. Describe what you'd like to build and I'll generate the code for you.",
             timestamp: new Date(),
           }],
           createdAt: new Date(),
@@ -176,7 +176,8 @@ export default function ChatInterface({
           screenshots: [], // Screenshots are captured internally now
           conversationHistory: currentConversation?.messages.slice(-10) || [] // Last 10 messages for context
         },
-        handleFunctionCall
+        handleFunctionCall,
+        controller.signal
       );
     } catch (error) {
       if (controller.signal.aborted) {
@@ -356,6 +357,16 @@ export default function ChatInterface({
 
       const successMessage = 'Code has been edited and executed successfully.';
       
+      // Include the resulting code in the function call arguments so that
+      // conversation history contains a snapshot of the full code.
+      const enrichedCall: FunctionCall = {
+        ...call,
+        arguments: {
+          ...call.arguments,
+          code: updatedCode
+        }
+      };
+      
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
@@ -363,7 +374,7 @@ export default function ChatInterface({
         timestamp: new Date(),
         metadata: {
           status: 'completed',
-          functionCall: call
+          functionCall: enrichedCall
         }
       });
       

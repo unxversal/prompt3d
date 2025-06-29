@@ -47,7 +47,7 @@ export interface ReplicadShape {
 // All Replicad functions (drawCircle, makeCuboid, union, etc.) are automatically
 // available in this editor.
 
-const DEFAULT_CODE = `// ⚙️ Replicad functions are auto-injected – no import needed!
+const DEFAULT_CODE = `
 
 // Example 1 – Simple cylinder
 const cylinder = drawCircle(20)           // radius 20 mm
@@ -109,6 +109,7 @@ export default function CADClientPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
 
   // Load API key and model on startup
   useEffect(() => {
@@ -428,6 +429,8 @@ export default function CADClientPage() {
   };
 
   const handleNewChat = async () => {
+    if (isCreatingChat) return;
+    setIsCreatingChat(true);
     try {
       // Create a new conversation
       const newConversation: Conversation = {
@@ -436,7 +439,7 @@ export default function CADClientPage() {
         messages: [{
           id: Math.random().toString(36).substr(2, 9),
           role: 'assistant',
-          content: "Hi! I'm C3D, your intelligent CAD assistant. I can help you create and modify 3D models using ReplicaD. Describe what you'd like to build and I'll generate the code for you.",
+          content: "Hi! I'm C3D, your intelligent CAD assistant. Describe what you'd like to build and I'll generate it!",
           timestamp: new Date(),
         }],
         createdAt: new Date(),
@@ -449,6 +452,9 @@ export default function CADClientPage() {
       // Reset the code editor back to the default template
       setCode(DEFAULT_CODE);
 
+      // Close chat history modal if open
+      setShowChatHistory(false);
+
       // Reset chat state to show the new conversation
       setChatState('hidden');
       setTimeout(() => setChatState('panel'), 100);
@@ -457,6 +463,8 @@ export default function CADClientPage() {
     } catch (error) {
       console.error('Failed to create new chat:', error);
       toast.error('Failed to create new chat');
+    } finally {
+      setIsCreatingChat(false);
     }
   };
 
@@ -464,24 +472,27 @@ export default function CADClientPage() {
     setCurrentConversation(conversation);
     setShowChatHistory(false);
     
-    // Find the last code from the conversation
-    let lastCode = code; // fallback to current code
-    
-    // Look for write_code or edit_code function calls in reverse order
+    // Attempt to retrieve the most recent code snapshot stored in messages
+    let foundCode: string | undefined;
+
     for (let i = conversation.messages.length - 1; i >= 0; i--) {
       const message = conversation.messages[i];
-      if (message.metadata?.functionCall) {
-        const funcCall = message.metadata.functionCall;
-        if ((funcCall.name === 'write_code' || funcCall.name === 'edit_code') && funcCall.arguments.code) {
-          lastCode = funcCall.arguments.code as string;
+      const funcCall = message.metadata?.functionCall;
+      if (funcCall && (funcCall.name === 'write_code' || funcCall.name === 'edit_code')) {
+        const codeArg = (funcCall.arguments as Record<string, unknown>)?.code as string | undefined;
+        if (typeof codeArg === 'string' && codeArg.trim().length > 0) {
+          foundCode = codeArg;
           break;
         }
       }
     }
-    
-    // Update the code if we found some
-    if (lastCode !== code) {
-      setCode(lastCode);
+
+    if (foundCode) {
+      // Load the code snapshot from history
+      setCode(foundCode);
+    } else {
+      // Conversation has no generated code yet – reset to default template
+      setCode(DEFAULT_CODE);
     }
     
     // Open chat panel
@@ -605,7 +616,7 @@ export default function CADClientPage() {
           ) : (
             <div className={styles.sandpackContainer}>
               <SandpackProvider
-                key={code}
+                key={currentConversation?.id || 'default'}
                 template="vanilla-ts"
                 theme={amethyst}
                 files={{
