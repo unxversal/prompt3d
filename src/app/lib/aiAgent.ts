@@ -50,7 +50,7 @@ export class AIAgent {
   private createSystemPrompt(): string {
     return `# C3D - Your AI CAD Assistant
 
-You are C3D, an intelligent AI assistant that helps users create 3D models using ReplicaD, a powerful parametric CAD library. You work directly and efficiently with minimal overhead.
+You are C3D, an intelligent AI assistant that helps users create 3D models using ReplicaD, a powerful parametric javascript CAD library. You work directly and efficiently with minimal overhead.
 
 ## Your Mission:
 Transform user ideas into precise, well-commented 3D model code using ReplicaD.
@@ -230,30 +230,60 @@ Please implement this request directly using the available tools. Use write_code
           },
         };
 
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            apiKey: this.apiKey,
-            model: this.model,
-            messages,
-            baseUrl: providerSettings.baseUrl,
-            useToolCalling: providerSettings.useToolCalling,
-            tools: providerSettings.useToolCalling ? AI_FUNCTIONS : undefined,
-            response_format: !providerSettings.useToolCalling ? {
-              type: 'json_schema',
-              json_schema: responseSchema,
-            } : undefined,
-            temperature: 0.9,
-            max_tokens: 2000,
-          }),
-        });
+        // --------- RETRY LOGIC FOR LLM REQUEST ---------
+        const maxRequestRetries = 3;
+        let response: Response | null = null;
+        let lastErrorMessage = '';
+        for (let attempt = 1; attempt <= maxRequestRetries; attempt++) {
+          try {
+            console.log(`🔄 Chat request attempt ${attempt}/${maxRequestRetries}`);
+            response = await fetch('/api/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                apiKey: this.apiKey,
+                model: this.model,
+                messages,
+                baseUrl: providerSettings.baseUrl,
+                useToolCalling: providerSettings.useToolCalling,
+                tools: providerSettings.useToolCalling ? AI_FUNCTIONS : undefined,
+                response_format: !providerSettings.useToolCalling ? {
+                  type: 'json_schema',
+                  json_schema: responseSchema,
+                } : undefined,
+                temperature: 0.9,
+                max_tokens: 2000,
+              }),
+            });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'API request failed');
+            // Break loop if successful
+            if (response.ok) {
+              break;
+            }
+
+            // If not ok and we have retries left, log and retry
+            if (attempt < maxRequestRetries) {
+              const errorData = await response.json().catch(() => ({}));
+              lastErrorMessage = errorData?.error || response.statusText;
+              console.warn(`⚠️  Chat request failed (attempt ${attempt}):`, lastErrorMessage);
+              continue;
+            }
+          } catch (networkError) {
+            // Handle network / fetch exceptions
+            if (attempt < maxRequestRetries) {
+              console.warn(`⚠️  Network error during chat request (attempt ${attempt}):`, networkError);
+              continue;
+            }
+            throw networkError;
+          }
+        }
+
+        if (!response || !response.ok) {
+          // If after retries we still have no successful response
+          const errorMessage = lastErrorMessage || 'API request failed';
+          throw new Error(errorMessage);
         }
 
         const data: ChatCompletionResponse = await response.json();
@@ -329,21 +359,24 @@ Please implement this request directly using the available tools. Use write_code
                 const functionName = functionCallMatch[1];
                 console.log(`Found truncated function call: ${functionName}, treating as notify_user`);
                 
-                // Treat truncated responses as notifications with error info
+                const repromptMsg = `I encountered an issue with my response (truncated JSON). The function I was trying to call was "${functionName}". Please try rephrasing your request or try again.`;
+                console.log(`🌀 Error occurred: Truncated JSON. Reprompting the agent with:`, repromptMsg);
                 await onFunctionCall({
                   name: 'notify_user',
                   arguments: {
-                    message: `I encountered an issue with my response (truncated JSON). The function I was trying to call was "${functionName}". Please try rephrasing your request or try again.`,
+                    message: repromptMsg,
                     type: 'error',
                   },
                 });
                 continue;
               } else {
                 console.warn('Could not identify function in truncated JSON, notifying user of error');
+                const repromptMsg = 'I encountered a technical issue with my response (incomplete data). Please try your request again.';
+                console.log('🌀 Error occurred: Incomplete data. Reprompting the agent with:', repromptMsg);
                 await onFunctionCall({
                   name: 'notify_user',
                   arguments: {
-                    message: 'I encountered a technical issue with my response (incomplete data). Please try your request again.',
+                    message: repromptMsg,
                     type: 'error',
                   },
                 });
@@ -367,10 +400,12 @@ Please implement this request directly using the available tools. Use write_code
             // If the content starts with { but failed to parse, it's likely truncated
             if (message.content.trim().startsWith('{')) {
               console.error('Detected malformed/truncated JSON response');
+              const repromptMsg = 'I encountered a technical issue with my response (malformed JSON). Please try your request again.';
+              console.log('🌀 Error occurred: Malformed JSON. Reprompting the agent with:', repromptMsg);
               await onFunctionCall({
                 name: 'notify_user',
                 arguments: {
-                  message: 'I encountered a technical issue with my response (malformed JSON). Please try your request again.',
+                  message: repromptMsg,
                   type: 'error',
                 },
               });
@@ -391,10 +426,12 @@ Please implement this request directly using the available tools. Use write_code
                 console.log('Successfully parsed function call pattern');
               } catch (parseError) {
                 console.warn('Failed to parse function call arguments:', parseError);
+                const repromptMsg = 'I encountered a parsing error in my response. Please try your request again.';
+                console.log('🌀 Error occurred: Parse error. Reprompting the agent with:', repromptMsg);
                 await onFunctionCall({
                   name: 'notify_user',
                   arguments: {
-                    message: 'I encountered a parsing error in my response. Please try your request again.',
+                    message: repromptMsg,
                     type: 'error',
                   },
                 });

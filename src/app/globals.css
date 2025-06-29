@@ -40,3 +40,12 @@ a {
     color-scheme: dark;
   }
 }
+
+/* Hide scrollbars in the Sandpack code editor while preserving scrollability */
+.cm-scroller {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+.cm-scroller::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}

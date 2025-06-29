@@ -216,6 +216,9 @@
   height: 100% !important;
 }
 
+/* Hide scrollbars in the Sandpack code editor while preserving scrollability */
+/* MOVED TO GLOBALS.CSS */
+
 .exportControls {
   display: flex;
   gap: 0.5rem;

@@ -446,6 +446,9 @@ export default function CADClientPage() {
       await conversationStore.saveConversation(newConversation);
       setCurrentConversation(newConversation);
 
+      // Reset the code editor back to the default template
+      setCode(DEFAULT_CODE);
+
       // Reset chat state to show the new conversation
       setChatState('hidden');
       setTimeout(() => setChatState('panel'), 100);

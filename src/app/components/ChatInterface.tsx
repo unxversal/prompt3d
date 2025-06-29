@@ -192,6 +192,13 @@ export default function ChatInterface({
       }
 
       console.error('AI processing error:', error);
+      // Additional logging to surface the error message for debugging purposes
+      if (error instanceof Error) {
+        console.log('🔍 AI error message:', error.message);
+      } else {
+        console.log('🔍 AI error (non-Error type):', error);
+      }
+      
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
       if (agentState.isCollapsed) {
@@ -666,11 +673,11 @@ export default function ChatInterface({
     );
   }
 
-  console.log('💬 Rendering messages:', { 
-    messageCount: currentConversation?.messages?.length || 0,
-    conversationId: currentConversation?.id,
-    state 
-  });
+  // console.log('💬 Rendering messages:', { 
+  //   messageCount: currentConversation?.messages?.length || 0,
+  //   conversationId: currentConversation?.id,
+  //   state 
+  // });
 
   const messagesContent = (
     <div className={styles.chatMessages}>
