@@ -11,7 +11,12 @@ import {
   Play,
   CheckSquare,
   Zap,
-  X
+  X,
+  Download,
+  Settings,
+  Plus,
+  History,
+  MessageCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
@@ -23,13 +28,22 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface ChatInterfaceProps {
-  state: 'panel' | 'overlay' | 'replace';
+  state: 'panel' | 'overlay' | 'replace' | 'minimal';
   currentCode: string;
   onAgentCodeChange: (code: string) => Promise<void>;
   apiKey: string | null;
   model: string;
   onApiKeyRequired: () => void;
   currentConversation?: Conversation | null; // Optional external conversation to load
+  // Props for minimal view navigation buttons
+  onRunCode?: () => void;
+  onExportSTEP?: () => void;
+  onOpenSettings?: () => void;
+  onNewChat?: () => void;
+  onChatHistory?: () => void;
+  onToggleChat?: () => void;
+  isExecuting?: boolean;
+  canExport?: boolean;
 }
 
 export default function ChatInterface({ 
@@ -39,7 +53,15 @@ export default function ChatInterface({
   apiKey,
   model,
   onApiKeyRequired,
-  currentConversation: externalConversation
+  currentConversation: externalConversation,
+  onRunCode,
+  onExportSTEP,
+  onOpenSettings,
+  onNewChat,
+  onChatHistory,
+  onToggleChat,
+  isExecuting,
+  canExport
 }: ChatInterfaceProps) {
   const [message, setMessage] = useState('');
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -735,6 +757,98 @@ export default function ChatInterface({
       <div className={`${styles.chatReplace} ${styles[theme]}`}>
         {messagesContent}
         {inputForm}
+      </div>
+    );
+  }
+
+  // Minimal state - centered input box with navigation buttons
+  if (state === 'minimal') {
+    return (
+      <div className={`${styles.chatMinimal} ${styles[theme]}`}>
+        <form onSubmit={handleSubmit} className={styles.minimalForm}>
+          <div className={styles.minimalNavigation}>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onRunCode}
+              disabled={isExecuting}
+              title={isExecuting ? 'Running...' : 'Run code'}
+            >
+              <Play size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onExportSTEP}
+              disabled={!canExport}
+              title="Export STEP"
+            >
+              <Download size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onOpenSettings}
+              title="Settings"
+            >
+              <Settings size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onNewChat}
+              title="New Chat"
+            >
+              <Plus size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onChatHistory}
+              title="Chat History"
+            >
+              <History size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onToggleChat}
+              title="Toggle Chat View"
+            >
+              <MessageCircle size={16} />
+            </button>
+          </div>
+          <div className={styles.minimalInputContainer}>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Ask C3D to create or modify your CAD design..."
+              className={styles.minimalInput}
+              rows={5}
+              disabled={agentState.isProcessing}
+              onKeyDown={handleKeyDown}
+            />
+            <button 
+              type={agentState.isProcessing ? "button" : "submit"}
+              className={`${styles.minimalSubmit} ${agentState.isProcessing ? styles.processingButton : ''}`}
+              disabled={!message.trim()}
+              onClick={agentState.isProcessing ? handleCancelConversation : undefined}
+              title={agentState.isProcessing ? "Cancel conversation" : "Send message"}
+            >
+              {agentState.isProcessing ? <X size={16} /> : <Send size={16} />}
+            </button>
+          </div>
+          {agentState.currentFunction && (
+            <div className={styles.minimalFunctionStatus}>
+              <Loader size={12} className={styles.spinning} />
+              {agentState.currentFunction === 'write_code' ? 'C3D is writing code...' :
+               agentState.currentFunction === 'edit_code' ? 'C3D is editing code...' :
+               agentState.currentFunction === 'notify_user' ? 'C3D is responding...' :
+               agentState.currentFunction === 'idle' ? 'C3D is finishing up...' :
+               `Executing: ${agentState.currentFunction}`}
+            </div>
+          )}
+        </form>
       </div>
     );
   }

@@ -271,6 +271,7 @@
   flex-direction: column;
   resize: horizontal;
   overflow: auto;
+  position: relative;
 }
 
 .loadingContainer {

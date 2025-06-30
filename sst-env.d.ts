@@ -9,6 +9,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "BypassPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "Prompt3D": {
       "type": "sst.aws.Nextjs"
       "url": string

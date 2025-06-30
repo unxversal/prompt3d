@@ -3,28 +3,26 @@
 
 // NOTE: This file contains the original implementation of the CAD page. It is imported dynamically from the server wrapper (page.tsx) with `ssr:false` so that Web Worker APIs are not evaluated during server-side rendering.
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
 import { MessageCircle, Play, Command, Plus, History, Download } from 'lucide-react';
 import styles from './page.module.css';
-
-// Components
+import { useCADInitialization } from './hooks/useCADInitialization';
+import { useTheme } from './hooks/useTheme';
+import CADViewer from './components/CADViewer';
 import ChatInterface from './components/ChatInterface';
 import SettingsPopover, { SettingsButton } from './components/SettingsPopover';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import Tooltip from './components/Tooltip';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
+import CodeEditor from './components/MonacoEditor';
 
-// Components
-import ErrorDisplay from './components/ErrorDisplay';
-import CADViewer from './components/CADViewer';
-
-// Convert CADShape to WorkerShape format for compatibility
-export interface WorkerShape {
+// Define WorkerShape interface to match what's used in CADViewer
+interface WorkerShape {
   name?: string;
   color?: string;
   opacity?: number;
@@ -36,7 +34,7 @@ export interface WorkerShape {
 }
 
 // Add interface for storing original replicad shapes
-export interface ReplicadShape {
+interface ReplicadShape {
   name: string;
   shape: any; // The actual replicad shape object
   color?: string;
@@ -47,31 +45,26 @@ export interface ReplicadShape {
 // All Replicad functions (drawCircle, makeCuboid, union, etc.) are automatically
 // available in this editor.
 
-const DEFAULT_CODE = `
+const DEFAULT_CODE = `import { draw, drawRoundedRectangle, drawCircle, drawPolygon, sketchCircle, sketchRectangle } from "replicad";
 
-// Example 1 – Simple cylinder
-const cylinder = drawCircle(20)           // radius 20 mm
-  .sketchOnPlane()                        // sketch on default XY plane
-  .extrude(50);                           // extrude 50 mm
+const main = () => {
+  // Create a base profile - rounded rectangle
+  const profile = drawRoundedRectangle(50, 30, 5)
+    .sketchOnPlane("XY")
+    .extrude(10);
 
-// Example 2 – Rounded-rectangle prism
-const roundedRect = drawRoundedRectangle(40, 30, 5) // 40×30 mm, r=5 mm corners
-  .sketchOnPlane()
-  .extrude(10);
+  // Create a cylindrical hole
+  const hole = sketchCircle(8)
+    .sketchOnPlane("XY", [0, 0, 5])
+    .extrude(15);
 
-// Mesh shapes so the viewer can display them
-const meshedShapes = [
-  {
-    name: 'Cylinder',
-    faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-    edges: cylinder.meshEdges(),
-  },
-  {
-    name: 'Rounded Rectangle',
-    faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-    edges: roundedRect.meshEdges(),
-  },
-];`;
+  // Subtract the hole from the profile
+  const result = profile.cut(hole);
+
+  return result;
+};
+
+export default main;`;
 
 // Component to handle code changes within Sandpack context
 function CodeEditor({ onCodeChange }: { onCodeChange: (code: string) => void }) {
@@ -103,7 +96,7 @@ export default function CADClientPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace'>('hidden');
+  const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace' | 'minimal'>('hidden');
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [model, setModel] = useState<string>('google/gemini-2.0-flash-exp:free');
   const [showSettings, setShowSettings] = useState(false);
@@ -214,7 +207,7 @@ export default function CADClientPage() {
             name: 'Rounded Rectangle',
             faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
             edges: roundedRect.meshEdges(),
-          }
+          },
         ];
       ` : codeToRun;
 
@@ -399,11 +392,21 @@ export default function CADClientPage() {
   }, [shapes.length, replicadShapes]);
 
   const toggleChat = () => {
-    setChatState(prev => {
-      if (prev === 'hidden') return 'panel';
-      if (prev === 'panel') return 'overlay';
-      if (prev === 'overlay') return 'replace';
-      return 'hidden';
+    setChatState(prevState => {
+      switch (prevState) {
+        case 'hidden':
+          return 'overlay';
+        case 'overlay':
+          return 'panel';
+        case 'panel':
+          return 'replace';
+        case 'replace':
+          return 'minimal';
+        case 'minimal':
+          return 'hidden';
+        default:
+          return 'hidden';
+      }
     });
   };
 
@@ -530,86 +533,145 @@ export default function CADClientPage() {
       </header>
 
       <div className={styles.mainContent}>
-        {/* Left Panel - 3D Viewer */}
-        <div className={styles.leftPanel}>
-          {error ? (
-            <ErrorDisplay error={error} onClose={() => setError(null)} />
-          ) : (
+        {/* Main Workspace */}
+        <div className={styles.workspace}>
+          {/* Left Panel - CAD Viewer */}
+          <div className={`${styles.viewerPanel} ${chatState === 'panel' ? styles.withChatPanel : ''}`}>
             <CADViewer shapes={shapes} />
-          )}
-        </div>
-
-        {/* Middle Panel - Code Editor with Sandpack OR Chat Replace */}
-        <div className={`${styles.rightPanel} ${chatState === 'panel' ? styles.withChatPanel : ''}`}>
-          <div className={styles.editorHeader}>
-            <div className={styles.editorHeaderLeft}>
-              {chatState === 'replace' ? (
-                <h3>C3D Agent</h3>
-              ) : (
-                <>
-                  <button
-                    className={styles.runButton}
-                    onClick={() => executeCode(code)}
-                    disabled={isExecuting}
-                  >
-                    <Play size={14} style={{ marginRight: '4px' }} />
-                    {isExecuting ? 'Running...' : 'Run'}
-                  </button>
-                  <span className={styles.shortcutHint}>
-                                          <span className={styles.commandKey}><Command size={12} /></span>
-                    <span className={styles.plusKey}>+</span>
-                    <span className={styles.enterKey}>Enter</span>
-                  </span>
-                </>
-              )}
-            </div>
-            <div className={styles.editorHeaderRight}>
-              <Tooltip content="Export STEP">
-                <button
-                  className={styles.exportButton}
-                  onClick={handleExportSTEP}
-                  disabled={shapes.length === 0}
-                >
-                  <Download size={14} />
-                </button>
-              </Tooltip>
-              <Tooltip content="Settings">
-                <SettingsButton onClick={() => setShowSettings(true)} />
-              </Tooltip>
-              <Tooltip content="New Chat">
-                <button
-                  className={styles.newChatButton}
-                  onClick={handleNewChat}
-                  title=""
-                >
-                  <Plus size={16} />
-                </button>
-              </Tooltip>
-              <Tooltip content="Chat History">
-                <button
-                  className={styles.historyButton}
-                  onClick={() => setShowChatHistory(true)}
-                  title=""
-                >
-                  <History size={16} />
-                </button>
-              </Tooltip>
-              <Tooltip content="C3D Agent">
-                <button
-                  className={styles.aiButton}
-                  onClick={toggleChat}
-                  title=""
-                >
-                  <MessageCircle size={16} />
-                </button>
-              </Tooltip>
-            </div>
           </div>
 
-          {/* Conditionally render chat replace or sandpack editor */}
-          {chatState === 'replace' ? (
+          {/* Middle Panel - Code Editor (hidden in minimal view) */}
+          {chatState !== 'minimal' && (
+            <div className={styles.editorPanel} style={{ 
+              resize: chatState === 'panel' ? 'horizontal' : 'both',
+              maxWidth: chatState === 'panel' ? 'calc(100vw - 480px - 480px)' : 'none'
+            }}>
+              <div className={styles.editorHeader}>
+                <div className={styles.editorHeaderLeft}>
+                  {chatState === 'replace' ? (
+                    <h3>C3D Agent</h3>
+                  ) : (
+                    <>
+                      <button
+                        className={styles.runButton}
+                        onClick={() => executeCode(code)}
+                        disabled={isExecuting}
+                      >
+                        <Play size={14} style={{ marginRight: '4px' }} />
+                        {isExecuting ? 'Running...' : 'Run'}
+                      </button>
+                      <span className={styles.shortcutHint}>
+                                            <span className={styles.commandKey}><Command size={12} /></span>
+                        <span className={styles.plusKey}>+</span>
+                        <span className={styles.enterKey}>Enter</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className={styles.editorHeaderRight}>
+                  <Tooltip content="Export STEP">
+                    <button
+                      className={styles.exportButton}
+                      onClick={handleExportSTEP}
+                      disabled={shapes.length === 0}
+                    >
+                      <Download size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Settings">
+                    <SettingsButton onClick={() => setShowSettings(true)} />
+                  </Tooltip>
+                  <Tooltip content="New Chat">
+                    <button
+                      className={styles.newChatButton}
+                      onClick={handleNewChat}
+                      title=""
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Chat History">
+                    <button
+                      className={styles.historyButton}
+                      onClick={() => setShowChatHistory(true)}
+                      title=""
+                    >
+                      <History size={16} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="C3D Agent">
+                    <button
+                      className={styles.aiButton}
+                      onClick={toggleChat}
+                      title=""
+                    >
+                      <MessageCircle size={16} />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+
+              {/* Conditionally render chat replace or sandpack editor */}
+              {chatState === 'replace' ? (
+                <ChatInterface 
+                  state="replace" 
+                  currentCode={code}
+                  onAgentCodeChange={handleAgentCodeChange}
+                  apiKey={apiKey}
+                  model={model}
+                  onApiKeyRequired={handleApiKeyRequired}
+                  currentConversation={currentConversation}
+                />
+              ) : (
+                <div className={styles.sandpackContainer}>
+                  <SandpackProvider
+                    key={currentConversation?.id || 'default'}
+                    template="vanilla-ts"
+                    theme={amethyst}
+                    files={{
+                      "/index.ts": {
+                        code: code,
+                      },
+                      "/package.json": {
+                        code: JSON.stringify({
+                          dependencies: {
+                            "replicad": "^0.19.0",
+                            "replicad-threejs-helper": "^0.19.0",
+                            "three": "^0.177.0"
+                          }
+                        }, null, 2)
+                      }
+                    }}
+                    options={{
+                      autorun: false,
+                    }}
+                  >
+                    <SandpackLayout>
+                      <CodeEditor onCodeChange={setCode} />
+                    </SandpackLayout>
+                  </SandpackProvider>
+                </div>
+              )}
+              
+              {/* Chat overlay - on top of code editor */}
+              {chatState === 'overlay' && (
+                <ChatInterface 
+                  state="overlay"
+                  currentCode={code}
+                  onAgentCodeChange={handleAgentCodeChange}
+                  apiKey={apiKey}
+                  model={model}
+                  onApiKeyRequired={handleApiKeyRequired}
+                  currentConversation={currentConversation}
+                />
+              )}
+            </div>
+          )}
+
+                    {/* Right Panel - Chat (when in panel mode) */}
+          {chatState === 'panel' && (
             <ChatInterface 
-              state="replace" 
+              state="panel"
               currentCode={code}
               onAgentCodeChange={handleAgentCodeChange}
               apiKey={apiKey}
@@ -617,63 +679,29 @@ export default function CADClientPage() {
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
             />
-          ) : (
-            <div className={styles.sandpackContainer}>
-              <SandpackProvider
-                key={currentConversation?.id || 'default'}
-                template="vanilla-ts"
-                theme={amethyst}
-                files={{
-                  "/index.ts": {
-                    code: code,
-                  },
-                  "/package.json": {
-                    code: JSON.stringify({
-                      dependencies: {
-                        "replicad": "^0.19.0",
-                        "replicad-threejs-helper": "^0.19.0",
-                        "three": "^0.177.0"
-                      }
-                    }, null, 2)
-                  }
-                }}
-                options={{
-                  autorun: false,
-                }}
-              >
-                <SandpackLayout>
-                  <CodeEditor onCodeChange={setCode} />
-                </SandpackLayout>
-              </SandpackProvider>
-            </div>
           )}
-          
-          {/* Chat overlay - on top of code editor */}
-          {chatState === 'overlay' && (
+
+          {/* Minimal Chat Interface - overlaid on the entire layout */}
+          {chatState === 'minimal' && (
             <ChatInterface 
-              state="overlay"
+              state="minimal"
               currentCode={code}
               onAgentCodeChange={handleAgentCodeChange}
               apiKey={apiKey}
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
+              onRunCode={() => executeCode(code)}
+              onExportSTEP={handleExportSTEP}
+              onOpenSettings={() => setShowSettings(true)}
+              onNewChat={handleNewChat}
+              onChatHistory={() => setShowChatHistory(true)}
+              onToggleChat={toggleChat}
+              isExecuting={isExecuting}
+              canExport={shapes.length > 0}
             />
           )}
         </div>
-
-                  {/* Right Panel - Chat (when in panel mode) */}
-        {chatState === 'panel' && (
-          <ChatInterface 
-            state="panel"
-            currentCode={code}
-            onAgentCodeChange={handleAgentCodeChange}
-            apiKey={apiKey}
-            model={model}
-            onApiKeyRequired={handleApiKeyRequired}
-            currentConversation={currentConversation}
-          />
-        )}
       </div>
 
       {/* Settings Popover */}
