@@ -159,14 +159,21 @@ ${REPLICAD_DOCS}
       tool_call_id?: string;
     }
 
+    // Detect if we are using an Anthropic Claude model (which requires special handling)
+    const isClaudeModel = this.model.toLowerCase().includes('claude');
+
     // Prepare conversation history - filter out messages with malformed tool calls
     const conversationMessages = context.conversationHistory
       .filter(msg => {
         // Keep user messages
         if (msg.role === 'user') return true;
         
-        // Keep assistant messages without function calls
-        if (msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
+        // Claude models with thinking enabled have strict validation rules –
+        // they complain if previous assistant messages do not start with a `thinking` block.
+        // Since we currently store assistant content as plain text strings, we simply omit
+        // those messages from the prompt that we send to Anthropic to avoid the 400
+        // validation error. For non-Claude models we retain them as before.
+        if (!isClaudeModel && msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
         
         // Skip assistant messages with function calls to avoid API errors
         // These cause issues because they need tool response messages that we don't store
@@ -346,139 +353,37 @@ Please implement this request directly using the available tools. Use write_code
         }
 
         // Parse structured JSON response (for non-tool-calling mode)
-        let actions: Array<{ name: string; arguments: Record<string, unknown> }> = [];
 
-        if (message.content) {
-          console.log('Processing message content:', message.content);
+        // Handle Anthropic block-based content (e.g. thinking/text arrays)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (Array.isArray((message as any).content)) {
           try {
-            // Check if the content looks like truncated JSON
-            if (message.content.trim().startsWith('{') && !message.content.trim().endsWith('}')) {
-              console.warn('Content appears to be truncated JSON, attempting to recover...');
-              
-              // Try to find a complete function call pattern within the truncated content
-              const functionCallMatch = message.content.match(/"name":\s*"(\w+)".*?"arguments":\s*{/);
-              if (functionCallMatch) {
-                const functionName = functionCallMatch[1];
-                console.log(`Found truncated function call: ${functionName}, treating as notify_user`);
-                
-                const repromptMsg = `I encountered an issue with my response (truncated JSON). The function I was trying to call was "${functionName}". Please try rephrasing your request or try again.`;
-                console.log(`🌀 Error occurred: Truncated JSON. Reprompting the agent with:`, repromptMsg);
-                await onFunctionCall({
-                  name: 'notify_user',
-                  arguments: {
-                    message: repromptMsg,
-                    type: 'error',
-                  },
-                });
-                continue;
-              } else {
-                console.warn('Could not identify function in truncated JSON, notifying user of error');
-                const repromptMsg = 'I encountered a technical issue with my response (incomplete data). Please try your request again.';
-                console.log('🌀 Error occurred: Incomplete data. Reprompting the agent with:', repromptMsg);
-                await onFunctionCall({
-                  name: 'notify_user',
-                  arguments: {
-                    message: repromptMsg,
-                    type: 'error',
-                  },
-                });
-                continue;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const blocks = (message as any).content as Array<any>;
+            let aggregated = '';
+            for (const block of blocks) {
+              if (block.type === 'thinking' && block.thinking) {
+                aggregated += `🤔 ${block.thinking}\n\n`;
+              } else if (block.type === 'text' && block.text) {
+                aggregated += `${block.text}\n\n`;
               }
             }
-            
-            const parsed = JSON.parse(message.content.trim());
-            console.log('Successfully parsed JSON:', parsed);
 
-            if (Array.isArray(parsed)) {
-              actions = parsed as Array<{ name: string; arguments: Record<string, unknown> }>;
-              console.log('Parsed as array of actions:', actions.length);
-            } else if (typeof parsed === 'object' && parsed !== null && 'name' in parsed) {
-              actions = [parsed as { name: string; arguments: Record<string, unknown> }];
-              console.log('Parsed as single action:', actions[0]);
-            }
-          } catch (parseError) {
-            console.warn('Failed to parse as JSON:', parseError);
-            
-            // If the content starts with { but failed to parse, it's likely truncated
-            if (message.content.trim().startsWith('{')) {
-              console.error('Detected malformed/truncated JSON response');
-              const repromptMsg = 'I encountered a technical issue with my response (malformed JSON). Please try your request again.';
-              console.log('🌀 Error occurred: Malformed JSON. Reprompting the agent with:', repromptMsg);
+            if (aggregated.trim().length > 0) {
               await onFunctionCall({
                 name: 'notify_user',
                 arguments: {
-                  message: repromptMsg,
-                  type: 'error',
+                  message: aggregated.trim(),
+                  type: 'info',
                 },
               });
-              continue;
             }
-            
-            // Try to parse raw function call format like "send_plan({...})"
-            const functionCallMatch = message.content.match(/(\w+)\(({[\s\S]*})\)/);
-            if (functionCallMatch) {
-              const [, functionName, argsString] = functionCallMatch;
-              console.log(`Found function call pattern: ${functionName}(...)`);
-              try {
-                const parsedArgs = JSON.parse(argsString);
-                actions = [{
-                  name: functionName,
-                  arguments: parsedArgs
-                }];
-                console.log('Successfully parsed function call pattern');
-              } catch (parseError) {
-                console.warn('Failed to parse function call arguments:', parseError);
-                const repromptMsg = 'I encountered a parsing error in my response. Please try your request again.';
-                console.log('🌀 Error occurred: Parse error. Reprompting the agent with:', repromptMsg);
-                await onFunctionCall({
-                  name: 'notify_user',
-                  arguments: {
-                    message: repromptMsg,
-                    type: 'error',
-                  },
-                });
-                continue;
-              }
-            }
+          } catch (err) {
+            console.warn('Failed to process block-based content:', err);
           }
         }
 
-        if (actions.length > 0) {
-          console.log(`Executing ${actions.length} actions:`, actions.map(a => a.name));
-          for (const action of actions) {
-            const functionCall: FunctionCall = {
-              name: action.name,
-              arguments: action.arguments || {},
-            };
-
-            console.log(`Calling function: ${functionCall.name}`, functionCall.arguments);
-            try {
-              const result = await onFunctionCall(functionCall);
-              functionCall.result = result;
-              console.log(`Function ${functionCall.name} completed:`, result);
-
-              // Provide feedback to the LLM
-              messages.push({
-                role: 'assistant',
-                content: `Function ${functionCall.name} executed. Result: ${JSON.stringify(result)}`,
-              });
-
-              if (functionCall.name === 'idle') {
-                console.log('Task marked as complete, stopping processing');
-                isComplete = true;
-                break;
-              }
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-              console.error(`Function ${functionCall.name} failed:`, errorMessage);
-
-              messages.push({
-                role: 'assistant',
-                content: `Error executing ${functionCall.name}: ${errorMessage}`,
-              });
-            }
-          }
-        } else if (message.content && !message.content.trim().startsWith('{')) {
+        if (typeof message.content === 'string' && message.content && !message.content.trim().startsWith('{')) {
           // Only forward plain content that's not malformed JSON
           console.log('Forwarding plain content as notification');
           await onFunctionCall({
