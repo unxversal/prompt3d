@@ -42,6 +42,7 @@ interface ChatInterfaceProps {
   onNewChat?: () => void;
   onChatHistory?: () => void;
   onToggleChat?: () => void;
+  onToggleCode?: () => void;
   isExecuting?: boolean;
   canExport?: boolean;
 }
@@ -60,6 +61,7 @@ export default function ChatInterface({
   onNewChat,
   onChatHistory,
   onToggleChat,
+  onToggleCode,
   isExecuting,
   canExport
 }: ChatInterfaceProps) {
@@ -148,7 +150,7 @@ export default function ChatInterface({
 
   // Update collapsed state when chat state changes
   useEffect(() => {
-    setAgentState(prev => ({ ...prev, isCollapsed: state !== 'replace' }));
+    setAgentState(prev => ({ ...prev, isCollapsed: state !== 'panel' }));
   }, [state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -668,43 +670,7 @@ export default function ChatInterface({
     </div>
   );
 
-  // Render based on chat state
-  if (state === 'overlay') {
-    return (
-      <div className={`${styles.chatOverlay} ${styles[theme]}`}>
-        <form onSubmit={handleSubmit} className={styles.chatForm}>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask C3D to create or modify your CAD design..."
-            className={styles.chatTextarea}
-            rows={7}
-            disabled={agentState.isProcessing}
-            onKeyDown={handleKeyDown}
-          />
-          <button 
-            type={agentState.isProcessing ? "button" : "submit"}
-            className={`${styles.chatSubmit} ${agentState.isProcessing ? styles.processingButton : ''}`}
-            disabled={!message.trim()}
-            onClick={agentState.isProcessing ? handleCancelConversation : undefined}
-            title={agentState.isProcessing ? "Cancel conversation" : "Send message"}
-          >
-            {agentState.isProcessing ? <X size={16} /> : <Send size={16} />}
-          </button>
-        </form>
-        {agentState.currentFunction && (
-          <div className={styles.functionStatus}>
-            <Loader size={12} className={styles.spinning} />
-            {agentState.currentFunction === 'write_code' ? 'C3D is writing code...' :
-             agentState.currentFunction === 'edit_code' ? 'C3D is editing code...' :
-             agentState.currentFunction === 'notify_user' ? 'C3D is responding...' :
-             agentState.currentFunction === 'idle' ? 'C3D is finishing up...' :
-             `Executing: ${agentState.currentFunction}`}
-          </div>
-        )}
-      </div>
-    );
-  }
+
 
   // console.log('💬 Rendering messages:', { 
   //   messageCount: currentConversation?.messages?.length || 0,
@@ -752,14 +718,7 @@ export default function ChatInterface({
     </form>
   );
 
-  if (state === 'replace') {
-    return (
-      <div className={`${styles.chatReplace} ${styles[theme]}`}>
-        {messagesContent}
-        {inputForm}
-      </div>
-    );
-  }
+
 
   // Minimal state - centered input box with navigation buttons
   if (state === 'minimal') {
@@ -808,6 +767,14 @@ export default function ChatInterface({
               title="Chat History"
             >
               <History size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
+              onClick={onToggleCode}
+              title="Toggle Code"
+            >
+              <Code size={16} />
             </button>
             <button
               type="button"

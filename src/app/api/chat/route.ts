@@ -78,31 +78,37 @@ export async function POST(request: NextRequest) {
 
     // Check if this is a Claude model for thinking support
     const isClaudeModel = model.toLowerCase().includes('claude');
+    
+    // Adjust temperature for Claude models with thinking enabled
+    const adjustedBaseParams = {
+      ...baseParams,
+      ...(isClaudeModel && { temperature: 1 }),
+    };
 
     // Add tools or response_format based on useToolCalling preference
     if (useToolCalling && tools && tools.length > 0) {
       const paramsWithTools = {
-        ...baseParams,
+        ...adjustedBaseParams,
         tools,
         tool_choice,
-        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 8000 } }),
+        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
       console.log('Request params with tools:', paramsWithTools);
       const completion = await openai.chat.completions.create(paramsWithTools);
       return NextResponse.json(completion);
     } else if (!useToolCalling && response_format) {
       const paramsWithFormat = {
-        ...baseParams,
+        ...adjustedBaseParams,
         response_format,
-        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 8000 } }),
+        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
       console.log('Request params with response format:', paramsWithFormat);
       const completion = await openai.chat.completions.create(paramsWithFormat);
       return NextResponse.json(completion);
     } else {
       const basicParams = {
-        ...baseParams,
-        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 8000 } }),
+        ...adjustedBaseParams,
+        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
       console.log('Request params basic:', basicParams);
       const completion = await openai.chat.completions.create(basicParams);

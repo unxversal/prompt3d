@@ -255,8 +255,8 @@ Please implement this request directly using the available tools. Use write_code
                   type: 'json_schema',
                   json_schema: responseSchema,
                 } : undefined,
-                temperature: 0.9,
-                max_tokens: 2000,
+                temperature: 1,
+                max_tokens: 20000,
               }),
             });
 

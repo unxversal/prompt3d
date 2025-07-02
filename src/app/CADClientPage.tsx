@@ -3,15 +3,13 @@
 
 // NOTE: This file contains the original implementation of the CAD page. It is imported dynamically from the server wrapper (page.tsx) with `ssr:false` so that Web Worker APIs are not evaluated during server-side rendering.
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
-import { MessageCircle, Play, Command, Plus, History, Download } from 'lucide-react';
+import { MessageCircle, Play, Command, Plus, History, Download, Code } from 'lucide-react';
 import styles from './page.module.css';
-import { useCADInitialization } from './hooks/useCADInitialization';
-import { useTheme } from './hooks/useTheme';
 import CADViewer from './components/CADViewer';
 import ChatInterface from './components/ChatInterface';
 import SettingsPopover, { SettingsButton } from './components/SettingsPopover';
@@ -19,7 +17,6 @@ import ChatHistoryModal from './components/ChatHistoryModal';
 import Tooltip from './components/Tooltip';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
-import CodeEditor from './components/MonacoEditor';
 
 // Define WorkerShape interface to match what's used in CADViewer
 interface WorkerShape {
@@ -93,10 +90,10 @@ export default function CADClientPage() {
   const [code, setCode] = useState(DEFAULT_CODE);
   const [shapes, setShapes] = useState<WorkerShape[]>([]);
   const [replicadShapes, setReplicadShapes] = useState<ReplicadShape[]>([]);  // Store original shapes for export
-  const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [chatState, setChatState] = useState<'hidden' | 'panel' | 'overlay' | 'replace' | 'minimal'>('hidden');
+  const [chatState, setChatState] = useState<'minimal' | 'panel'>('minimal');
+  const [codeState, setCodeState] = useState<'hidden' | 'visible'>('hidden');
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [model, setModel] = useState<string>('google/gemini-2.0-flash-exp:free');
   const [showSettings, setShowSettings] = useState(false);
@@ -162,7 +159,6 @@ export default function CADClientPage() {
       } catch (err) {
         console.error('Failed to initialize OpenCascade:', err);
         const errorMessage = err instanceof Error ? err.message : 'Failed to initialize OpenCascade';
-        setError(errorMessage);
         
         toast.error('Failed to load CAD engine', {
           id: toastId,
@@ -179,7 +175,6 @@ export default function CADClientPage() {
     if (isExecuting || !isInitialized) return;
 
     setIsExecuting(true);
-    setError(null);
     const toastId = toast.loading('Generating shapes...', {
       description: 'Creating 3D models with C3D Engine.',
     });
@@ -295,7 +290,6 @@ export default function CADClientPage() {
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
       toast.error('Generation failed', {
         id: toastId,
         description: errorMessage.slice(0, 80) + (errorMessage.length > 80 ? '...' : ''),
@@ -319,8 +313,8 @@ export default function CADClientPage() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault();
-        // Disable Cmd+Enter when chat replaces the editor
-        if (isInitialized && chatState !== 'replace') {
+        // Execute code when Cmd+Enter is pressed
+        if (isInitialized) {
           executeCode(code);
         }
       }
@@ -392,22 +386,11 @@ export default function CADClientPage() {
   }, [shapes.length, replicadShapes]);
 
   const toggleChat = () => {
-    setChatState(prevState => {
-      switch (prevState) {
-        case 'hidden':
-          return 'overlay';
-        case 'overlay':
-          return 'panel';
-        case 'panel':
-          return 'replace';
-        case 'replace':
-          return 'minimal';
-        case 'minimal':
-          return 'hidden';
-        default:
-          return 'hidden';
-      }
-    });
+    setChatState(chatState === 'panel' ? 'minimal' : 'panel');
+  };
+
+  const toggleCode = () => {
+    setCodeState(codeState === 'visible' ? 'hidden' : 'visible');
   };
 
   const handleApiKeyRequired = () => {
@@ -459,7 +442,7 @@ export default function CADClientPage() {
       setShowChatHistory(false);
 
       // Reset chat state to show the new conversation
-      setChatState('hidden');
+      setChatState('minimal');
       setTimeout(() => setChatState('panel'), 100);
 
       toast.success('Started new chat');
@@ -537,36 +520,30 @@ export default function CADClientPage() {
         <div className={styles.workspace}>
           {/* Left Panel - CAD Viewer */}
           <div className={`${styles.viewerPanel} ${chatState === 'panel' ? styles.withChatPanel : ''}`}>
-            <CADViewer shapes={shapes} />
+            <CADViewer shapes={shapes} isMinimalView={chatState === 'minimal'} />
           </div>
 
-          {/* Middle Panel - Code Editor (hidden in minimal view) */}
-          {chatState !== 'minimal' && (
+          {/* Middle Panel - Code Editor */}
+          {codeState === 'visible' && (
             <div className={styles.editorPanel} style={{ 
               resize: chatState === 'panel' ? 'horizontal' : 'both',
               maxWidth: chatState === 'panel' ? 'calc(100vw - 480px - 480px)' : 'none'
             }}>
               <div className={styles.editorHeader}>
                 <div className={styles.editorHeaderLeft}>
-                  {chatState === 'replace' ? (
-                    <h3>C3D Agent</h3>
-                  ) : (
-                    <>
-                      <button
-                        className={styles.runButton}
-                        onClick={() => executeCode(code)}
-                        disabled={isExecuting}
-                      >
-                        <Play size={14} style={{ marginRight: '4px' }} />
-                        {isExecuting ? 'Running...' : 'Run'}
-                      </button>
-                      <span className={styles.shortcutHint}>
-                                            <span className={styles.commandKey}><Command size={12} /></span>
-                        <span className={styles.plusKey}>+</span>
-                        <span className={styles.enterKey}>Enter</span>
-                      </span>
-                    </>
-                  )}
+                  <button
+                    className={styles.runButton}
+                    onClick={() => executeCode(code)}
+                    disabled={isExecuting}
+                  >
+                    <Play size={14} style={{ marginRight: '4px' }} />
+                    {isExecuting ? 'Running...' : 'Run'}
+                  </button>
+                  <span className={styles.shortcutHint}>
+                    <span className={styles.commandKey}><Command size={12} /></span>
+                    <span className={styles.plusKey}>+</span>
+                    <span className={styles.enterKey}>Enter</span>
+                  </span>
                 </div>
                 <div className={styles.editorHeaderRight}>
                   <Tooltip content="Export STEP">
@@ -599,10 +576,19 @@ export default function CADClientPage() {
                       <History size={16} />
                     </button>
                   </Tooltip>
+                  <Tooltip content="Toggle Code">
+                    <button
+                      className={styles.aiButton}
+                      onClick={() => setCodeState(codeState === 'visible' ? 'hidden' : 'visible')}
+                      title=""
+                    >
+                      <Code size={16} />
+                    </button>
+                  </Tooltip>
                   <Tooltip content="C3D Agent">
                     <button
                       className={styles.aiButton}
-                      onClick={toggleChat}
+                      onClick={() => setChatState(chatState === 'panel' ? 'minimal' : 'panel')}
                       title=""
                     >
                       <MessageCircle size={16} />
@@ -611,60 +597,34 @@ export default function CADClientPage() {
                 </div>
               </div>
 
-              {/* Conditionally render chat replace or sandpack editor */}
-              {chatState === 'replace' ? (
-                <ChatInterface 
-                  state="replace" 
-                  currentCode={code}
-                  onAgentCodeChange={handleAgentCodeChange}
-                  apiKey={apiKey}
-                  model={model}
-                  onApiKeyRequired={handleApiKeyRequired}
-                  currentConversation={currentConversation}
-                />
-              ) : (
-                <div className={styles.sandpackContainer}>
-                  <SandpackProvider
-                    key={currentConversation?.id || 'default'}
-                    template="vanilla-ts"
-                    theme={amethyst}
-                    files={{
-                      "/index.ts": {
-                        code: code,
-                      },
-                      "/package.json": {
-                        code: JSON.stringify({
-                          dependencies: {
-                            "replicad": "^0.19.0",
-                            "replicad-threejs-helper": "^0.19.0",
-                            "three": "^0.177.0"
-                          }
-                        }, null, 2)
-                      }
-                    }}
-                    options={{
-                      autorun: false,
-                    }}
-                  >
-                    <SandpackLayout>
-                      <CodeEditor onCodeChange={setCode} />
-                    </SandpackLayout>
-                  </SandpackProvider>
-                </div>
-              )}
-              
-              {/* Chat overlay - on top of code editor */}
-              {chatState === 'overlay' && (
-                <ChatInterface 
-                  state="overlay"
-                  currentCode={code}
-                  onAgentCodeChange={handleAgentCodeChange}
-                  apiKey={apiKey}
-                  model={model}
-                  onApiKeyRequired={handleApiKeyRequired}
-                  currentConversation={currentConversation}
-                />
-              )}
+              <div className={styles.sandpackContainer}>
+                <SandpackProvider
+                  key={currentConversation?.id || 'default'}
+                  template="vanilla-ts"
+                  theme={amethyst}
+                  files={{
+                    "/index.ts": {
+                      code: code,
+                    },
+                    "/package.json": {
+                      code: JSON.stringify({
+                        dependencies: {
+                          "replicad": "^0.19.0",
+                          "replicad-threejs-helper": "^0.19.0",
+                          "three": "^0.177.0"
+                        }
+                      }, null, 2)
+                    }
+                  }}
+                  options={{
+                    autorun: false,
+                  }}
+                >
+                  <SandpackLayout>
+                    <CodeEditor onCodeChange={setCode} />
+                  </SandpackLayout>
+                </SandpackProvider>
+              </div>
             </div>
           )}
 
@@ -697,6 +657,7 @@ export default function CADClientPage() {
               onNewChat={handleNewChat}
               onChatHistory={() => setShowChatHistory(true)}
               onToggleChat={toggleChat}
+              onToggleCode={toggleCode}
               isExecuting={isExecuting}
               canExport={shapes.length > 0}
             />

@@ -31,6 +31,7 @@ const WireframeContext = createContext<boolean>(false);
 
 interface CADViewerProps {
   shapes: WorkerShape[];
+  isMinimalView?: boolean;
 }
 
 // Component for rendering a single CAD shape
@@ -245,7 +246,7 @@ function Scene({ shapes, isWireframe }: { shapes: WorkerShape[], isWireframe: bo
   );
 }
 
-export default function CADViewer({ shapes }: CADViewerProps) {
+export default function CADViewer({ shapes, isMinimalView }: CADViewerProps) {
   const [autoFit, setAutoFit] = useState(true);
   const [isWireframe, setIsWireframe] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -260,7 +261,7 @@ export default function CADViewer({ shapes }: CADViewerProps) {
     if (!canvasRef.current) return;
     
     const link = document.createElement('a');
-    link.download = 'cad-model.png';
+    link.download = 'c3d-model.png';
     link.href = canvasRef.current.toDataURL();
     link.click();
   };
@@ -337,7 +338,7 @@ export default function CADViewer({ shapes }: CADViewerProps) {
 
       {/* Info Panel */}
       {shapes.length > 0 && (
-        <div className={styles.infoPanelContainer}>
+        <div className={`${styles.infoPanelContainer} ${isMinimalView ? styles.infoPanelContainerMinimal : ''}`}>
           <div className={styles.infoPanel}>
             {shapes.length} shape{shapes.length !== 1 ? 's' : ''} loaded
           </div>
