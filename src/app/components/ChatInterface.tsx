@@ -26,6 +26,8 @@ import { Message, Conversation, FunctionCall, AIAgentState } from '../types/ai';
 import styles from './ChatInterface.module.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Tooltip from './Tooltip';
+import { SettingsButton } from './SettingsPopover';
 
 interface ChatInterfaceProps {
   state: 'panel' | 'overlay' | 'replace' | 'minimal';
@@ -823,6 +825,68 @@ export default function ChatInterface({
   // Panel state
   return (
     <div className={`${styles.chatPanel} ${styles[theme]}`}>
+      <div className={styles.panelHeader}>
+        <div className={styles.panelHeaderLeft}>
+          <button
+            className={styles.runButton}
+            onClick={onRunCode}
+            disabled={isExecuting}
+          >
+            <Play size={14} style={{ marginRight: '4px' }} />
+            {isExecuting ? 'Running...' : 'Run'}
+          </button>
+        </div>
+        <div className={styles.panelHeaderRight}>
+          <Tooltip content="Export STEP">
+            <button
+              className={styles.iconButton}
+              onClick={onExportSTEP}
+              disabled={!canExport}
+            >
+              <Download size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Settings">
+            <SettingsButton onClick={onOpenSettings || (() => {})} />
+          </Tooltip>
+          <Tooltip content="New Chat">
+            <button
+              className={styles.iconButton}
+              onClick={onNewChat}
+              title=""
+            >
+              <Plus size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Chat History">
+            <button
+              className={styles.iconButton}
+              onClick={onChatHistory}
+              title=""
+            >
+              <History size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Toggle Code">
+            <button
+              className={styles.iconButton}
+              onClick={onToggleCode}
+              title=""
+            >
+              <Code size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Toggle Chat">
+            <button
+              className={styles.iconButton}
+              onClick={onToggleChat}
+              title=""
+            >
+              <MessageCircle size={16} />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
       {messagesContent}
       {inputForm}
     </div>

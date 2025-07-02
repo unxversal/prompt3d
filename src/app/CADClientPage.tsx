@@ -8,13 +8,11 @@ import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
 import { amethyst } from '@codesandbox/sandpack-themes';
-import { MessageCircle, Play, Command, Plus, History, Download, Code } from 'lucide-react';
 import styles from './page.module.css';
 import CADViewer from './components/CADViewer';
 import ChatInterface from './components/ChatInterface';
-import SettingsPopover, { SettingsButton } from './components/SettingsPopover';
+import SettingsPopover from './components/SettingsPopover';
 import ChatHistoryModal from './components/ChatHistoryModal';
-import Tooltip from './components/Tooltip';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
 
@@ -519,84 +517,13 @@ export default function CADClientPage() {
         {/* Main Workspace */}
         <div className={styles.workspace}>
           {/* Left Panel - CAD Viewer */}
-          <div className={`${styles.viewerPanel} ${chatState === 'panel' ? styles.withChatPanel : ''}`}>
+          <div className={`${styles.viewerPanel} ${chatState === 'panel' ? styles.withChatPanel : ''} ${codeState === 'visible' ? styles.withCodePanel : ''}`}>
             <CADViewer shapes={shapes} isMinimalView={chatState === 'minimal'} />
           </div>
 
           {/* Middle Panel - Code Editor */}
           {codeState === 'visible' && (
-            <div className={styles.editorPanel} style={{ 
-              resize: chatState === 'panel' ? 'horizontal' : 'both',
-              maxWidth: chatState === 'panel' ? 'calc(100vw - 480px - 480px)' : 'none'
-            }}>
-              <div className={styles.editorHeader}>
-                <div className={styles.editorHeaderLeft}>
-                  <button
-                    className={styles.runButton}
-                    onClick={() => executeCode(code)}
-                    disabled={isExecuting}
-                  >
-                    <Play size={14} style={{ marginRight: '4px' }} />
-                    {isExecuting ? 'Running...' : 'Run'}
-                  </button>
-                  <span className={styles.shortcutHint}>
-                    <span className={styles.commandKey}><Command size={12} /></span>
-                    <span className={styles.plusKey}>+</span>
-                    <span className={styles.enterKey}>Enter</span>
-                  </span>
-                </div>
-                <div className={styles.editorHeaderRight}>
-                  <Tooltip content="Export STEP">
-                    <button
-                      className={styles.exportButton}
-                      onClick={handleExportSTEP}
-                      disabled={shapes.length === 0}
-                    >
-                      <Download size={14} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Settings">
-                    <SettingsButton onClick={() => setShowSettings(true)} />
-                  </Tooltip>
-                  <Tooltip content="New Chat">
-                    <button
-                      className={styles.newChatButton}
-                      onClick={handleNewChat}
-                      title=""
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Chat History">
-                    <button
-                      className={styles.historyButton}
-                      onClick={() => setShowChatHistory(true)}
-                      title=""
-                    >
-                      <History size={16} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Toggle Code">
-                    <button
-                      className={styles.aiButton}
-                      onClick={() => setCodeState(codeState === 'visible' ? 'hidden' : 'visible')}
-                      title=""
-                    >
-                      <Code size={16} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="C3D Agent">
-                    <button
-                      className={styles.aiButton}
-                      onClick={() => setChatState(chatState === 'panel' ? 'minimal' : 'panel')}
-                      title=""
-                    >
-                      <MessageCircle size={16} />
-                    </button>
-                  </Tooltip>
-                </div>
-              </div>
-
+            <div className={styles.editorPanel}>
               <div className={styles.sandpackContainer}>
                 <SandpackProvider
                   key={currentConversation?.id || 'default'}
@@ -628,7 +555,7 @@ export default function CADClientPage() {
             </div>
           )}
 
-                    {/* Right Panel - Chat (when in panel mode) */}
+          {/* Right Panel - Chat (when in panel mode) */}
           {chatState === 'panel' && (
             <ChatInterface 
               state="panel"
@@ -638,6 +565,15 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
+              onRunCode={() => executeCode(code)}
+              onExportSTEP={handleExportSTEP}
+              onOpenSettings={() => setShowSettings(true)}
+              onNewChat={handleNewChat}
+              onChatHistory={() => setShowChatHistory(true)}
+              onToggleChat={toggleChat}
+              onToggleCode={toggleCode}
+              isExecuting={isExecuting}
+              canExport={shapes.length > 0}
             />
           )}
 

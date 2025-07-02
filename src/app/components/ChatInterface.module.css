@@ -396,7 +396,7 @@
 }
 
 .light .chatMessages::-webkit-scrollbar-thumb:hover {
-  background-color: #a1a1aa;
+  background-color: #b3b3b3;
 }
 
 /* Responsive Design */
@@ -1259,4 +1259,92 @@
   background: #ffffff;
   border-color: #e5e5e5;
   color: #6b7280;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid;
+  flex-shrink: 0;
+}
+
+.dark .panelHeader {
+  background: #0a0a0a;
+  border-bottom-color: #1a1a1a;
+}
+
+.light .panelHeader {
+  background: #f5f5f5;
+  border-bottom-color: #e5e5e5;
+}
+
+.panelHeaderLeft, .panelHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.runButton {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #333333;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+}
+
+.runButton:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.runButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iconButton {
+  background: transparent;
+  border: 1px solid #333333;
+  color: #ffffff;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+}
+
+.dark .iconButton {
+  border-color: #333333;
+  color: #ffffff;
+}
+
+.light .iconButton {
+  border-color: #cccccc;
+  color: #000000;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: #1a1a1a;
+}
+
+.light .iconButton:hover:not(:disabled) {
+  background: #e5e5e5;
+}
+
+.iconButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 } 
