@@ -99,6 +99,8 @@ const meshedShapes = [
 ];
 \`\`\`
 
+You MUST always end your code with exporting the meshed shapes as the above does, or else your code will not work.
+
 ## Design Principles:
 
 ### 📏 **Clear Documentation**
@@ -170,13 +172,13 @@ ${REPLICAD_DOCS}
         
         // Claude models with thinking enabled have strict validation rules –
         // they complain if previous assistant messages do not start with a `thinking` block.
-        // Since we currently store assistant content as plain text strings, we simply omit
-        // those messages from the prompt that we send to Anthropic to avoid the 400
-        // validation error. For non-Claude models we retain them as before.
+        // Since we don't store thinking blocks in our conversation history, we must
+        // filter out ALL assistant messages for Claude models to avoid validation errors.
+        // For non-Claude models we retain assistant messages without function calls.
         if (!isClaudeModel && msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
         
-        // Skip assistant messages with function calls to avoid API errors
-        // These cause issues because they need tool response messages that we don't store
+        // For Claude models: Skip ALL assistant messages to avoid thinking validation
+        // For other models: Skip assistant messages with function calls (they need tool responses we don't store)
         return false;
       })
       .map(msg => ({

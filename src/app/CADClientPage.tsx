@@ -3,7 +3,7 @@
 
 // NOTE: This file contains the original implementation of the CAD page. It is imported dynamically from the server wrapper (page.tsx) with `ssr:false` so that Web Worker APIs are not evaluated during server-side rendering.
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { SandpackProvider, SandpackLayout, SandpackCodeEditor, useSandpack } from '@codesandbox/sandpack-react';
@@ -98,6 +98,7 @@ export default function CADClientPage() {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const hasExecutedInitialCode = useRef(false);
 
   // Load API key and model on startup
   useEffect(() => {
@@ -301,10 +302,11 @@ export default function CADClientPage() {
 
   // Auto-execute once after initialization
   useEffect(() => {
-    if (isInitialized && shapes.length === 0) {
+    if (isInitialized && !hasExecutedInitialCode.current) {
       executeCode(code);
+      hasExecutedInitialCode.current = true;
     }
-  }, [isInitialized, executeCode, shapes.length, code]);
+  }, [isInitialized, executeCode, code]);
 
   // Keyboard shortcuts
   useEffect(() => {
