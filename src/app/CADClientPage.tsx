@@ -439,9 +439,8 @@ export default function CADClientPage() {
       // Close chat history modal if open
       setShowChatHistory(false);
 
-      // Reset chat state to show the new conversation
-      setChatState('minimal');
-      setTimeout(() => setChatState('panel'), 100);
+      // Preserve current chat view (panel or minimal)
+      // No need to change chatState here
 
       toast.success('Started new chat');
     } catch (error) {
@@ -483,8 +482,7 @@ export default function CADClientPage() {
       executeCode(DEFAULT_CODE);
     }
     
-    // Open chat panel
-    setChatState('panel');
+    // Preserve the current chat view (do not force switch)
   };
 
   const handleConversationRenamed = (conversationId: string, newTitle: string) => {
@@ -524,38 +522,38 @@ export default function CADClientPage() {
           {/* Middle Panel - Code Editor */}
           {codeState === 'visible' && (
             <div className={styles.editorPanel}>
-              <div className={styles.sandpackContainer}>
-                <SandpackProvider
-                  key={currentConversation?.id || 'default'}
-                  template="vanilla-ts"
-                  theme={amethyst}
-                  files={{
-                    "/index.ts": {
-                      code: code,
-                    },
-                    "/package.json": {
-                      code: JSON.stringify({
-                        dependencies: {
-                          "replicad": "^0.19.0",
-                          "replicad-threejs-helper": "^0.19.0",
-                          "three": "^0.177.0"
-                        }
-                      }, null, 2)
-                    }
-                  }}
-                  options={{
-                    autorun: false,
-                  }}
-                >
-                  <SandpackLayout>
-                    <CodeEditor onCodeChange={setCode} />
-                  </SandpackLayout>
-                </SandpackProvider>
-              </div>
+                <div className={styles.sandpackContainer}>
+                  <SandpackProvider
+                    key={currentConversation?.id || 'default'}
+                    template="vanilla-ts"
+                    theme={amethyst}
+                    files={{
+                      "/index.ts": {
+                        code: code,
+                      },
+                      "/package.json": {
+                        code: JSON.stringify({
+                          dependencies: {
+                            "replicad": "^0.19.0",
+                            "replicad-threejs-helper": "^0.19.0",
+                            "three": "^0.177.0"
+                          }
+                        }, null, 2)
+                      }
+                    }}
+                    options={{
+                      autorun: false,
+                    }}
+                  >
+                    <SandpackLayout>
+                      <CodeEditor onCodeChange={setCode} />
+                    </SandpackLayout>
+                  </SandpackProvider>
+                </div>
             </div>
           )}
 
-          {/* Right Panel - Chat (when in panel mode) */}
+                    {/* Right Panel - Chat (when in panel mode) */}
           {chatState === 'panel' && (
             <ChatInterface 
               state="panel"
