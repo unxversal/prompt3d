@@ -93,8 +93,10 @@ export async function POST(request: NextRequest) {
         tool_choice,
         ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
-      console.log('Request params with tools:', paramsWithTools);
+      // console.log('Request params with tools:', paramsWithTools);
+      console.log('Request params with tools:');
       const completion = await openai.chat.completions.create(paramsWithTools);
+      console.log('Completion:', completion);
       return NextResponse.json(completion);
     } else if (!useToolCalling && response_format) {
       const paramsWithFormat = {
@@ -102,16 +104,20 @@ export async function POST(request: NextRequest) {
         response_format,
         ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
-      console.log('Request params with response format:', paramsWithFormat);
+      // console.log('Request params with response format:', paramsWithFormat);
+      console.log('Request params with response format:');
       const completion = await openai.chat.completions.create(paramsWithFormat);
+      console.log('Completion:', completion);
       return NextResponse.json(completion);
     } else {
       const basicParams = {
         ...adjustedBaseParams,
         ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
-      console.log('Request params basic:', basicParams);
+      // console.log('Request params basic:', basicParams);
+      console.log('Request params basic:');
       const completion = await openai.chat.completions.create(basicParams);
+      console.log('Completion:', completion);
       return NextResponse.json(completion);
     }
 
