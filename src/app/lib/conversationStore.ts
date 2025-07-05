@@ -1,6 +1,20 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { Conversation, Message } from '../types/ai';
 
+interface ModelConfiguration {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  useToolCalling: boolean;
+  sendScreenshots: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface ConversationDB extends DBSchema {
   conversations: {
     key: string;
@@ -17,6 +31,8 @@ interface ConversationDB extends DBSchema {
       collapsed?: boolean;
       baseUrl?: string;
       useToolCalling?: boolean;
+      sendScreenshots?: boolean;
+      activeModelId?: string;
     };
   };
   providerSettings: {
@@ -27,7 +43,13 @@ interface ConversationDB extends DBSchema {
       model?: string;
       baseUrl?: string;
       useToolCalling?: boolean;
+      sendScreenshots?: boolean;
     };
+  };
+  modelConfigurations: {
+    key: string;
+    value: ModelConfiguration;
+    indexes: { 'by-date': Date };
   };
 }
 
@@ -37,7 +59,7 @@ class ConversationStore {
   async init(): Promise<void> {
     if (this.db) return;
 
-    this.db = await openDB<ConversationDB>('c3d-conversations', 2, {
+    this.db = await openDB<ConversationDB>('c3d-conversations', 3, {
       upgrade(db, oldVersion) {
         // Create conversations store
         if (oldVersion < 1) {
@@ -57,6 +79,14 @@ class ConversationStore {
           db.createObjectStore('providerSettings', {
             keyPath: 'provider',
           });
+        }
+        
+        // Create model configurations store
+        if (oldVersion < 3) {
+          const modelConfigStore = db.createObjectStore('modelConfigurations', {
+            keyPath: 'id',
+          });
+          modelConfigStore.createIndex('by-date', 'updatedAt');
         }
       },
     });
@@ -181,6 +211,7 @@ class ConversationStore {
   async getProviderSettings(): Promise<{
     baseUrl: string;
     useToolCalling: boolean;
+    sendScreenshots: boolean;
   }> {
     await this.init();
     if (!this.db) throw new Error('Database not initialized');
@@ -189,12 +220,14 @@ class ConversationStore {
     return {
       baseUrl: settings?.baseUrl || 'https://openrouter.ai/api/v1',
       useToolCalling: settings?.useToolCalling ?? true,
+      sendScreenshots: settings?.sendScreenshots ?? true,
     };
   }
 
   async setProviderSettings(settings: {
     baseUrl?: string;
     useToolCalling?: boolean;
+    sendScreenshots?: boolean;
   }): Promise<void> {
     await this.init();
     if (!this.db) throw new Error('Database not initialized');
@@ -213,6 +246,7 @@ class ConversationStore {
     model?: string;
     baseUrl?: string;
     useToolCalling?: boolean;
+    sendScreenshots?: boolean;
   }> {
     await this.init();
     if (!this.db) throw new Error('Database not initialized');
@@ -223,6 +257,7 @@ class ConversationStore {
       model: settings?.model,
       baseUrl: settings?.baseUrl,
       useToolCalling: settings?.useToolCalling,
+      sendScreenshots: settings?.sendScreenshots,
     };
   }
 
@@ -231,6 +266,7 @@ class ConversationStore {
     model?: string;
     baseUrl?: string;
     useToolCalling?: boolean;
+    sendScreenshots?: boolean;
   }): Promise<void> {
     await this.init();
     if (!this.db) throw new Error('Database not initialized');
@@ -248,6 +284,7 @@ class ConversationStore {
     model?: string;
     baseUrl?: string;
     useToolCalling?: boolean;
+    sendScreenshots?: boolean;
   }>> {
     await this.init();
     if (!this.db) throw new Error('Database not initialized');
@@ -258,6 +295,7 @@ class ConversationStore {
       model?: string;
       baseUrl?: string;
       useToolCalling?: boolean;
+      sendScreenshots?: boolean;
     }> = {};
     
     for (const config of allConfigs) {
@@ -266,11 +304,116 @@ class ConversationStore {
         model: config.model,
         baseUrl: config.baseUrl,
         useToolCalling: config.useToolCalling,
+        sendScreenshots: config.sendScreenshots,
       };
     }
     
     return result;
   }
+
+  // Model configurations management
+  async getAllModelConfigurations(): Promise<ModelConfiguration[]> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return await this.db.getAllFromIndex('modelConfigurations', 'by-date');
+  }
+
+  async getModelConfiguration(id: string): Promise<ModelConfiguration | undefined> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return await this.db.get('modelConfigurations', id);
+  }
+
+  async saveModelConfiguration(config: ModelConfiguration): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    config.updatedAt = new Date();
+    await this.db.put('modelConfigurations', config);
+  }
+
+  async deleteModelConfiguration(id: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.delete('modelConfigurations', id);
+  }
+
+  async getActiveModelConfiguration(): Promise<ModelConfiguration | null> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    // First try to get from active model ID setting
+    const settings = await this.db.get('settings', 'active-model');
+    if (settings?.activeModelId) {
+      const config = await this.getModelConfiguration(settings.activeModelId);
+      if (config) return config;
+    }
+    
+    // Fallback: find any active model
+    const allConfigs = await this.getAllModelConfigurations();
+    return allConfigs.find(config => config.isActive) || null;
+  }
+
+  async setActiveModelConfiguration(id: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    // Set all models to inactive
+    const allConfigs = await this.getAllModelConfigurations();
+    for (const config of allConfigs) {
+      if (config.isActive) {
+        config.isActive = false;
+        await this.saveModelConfiguration(config);
+      }
+    }
+    
+    // Set the specified model as active
+    const config = await this.getModelConfiguration(id);
+    if (config) {
+      config.isActive = true;
+      await this.saveModelConfiguration(config);
+      
+      // Also update the active model ID setting
+      await this.db.put('settings', { 
+        key: 'active-model', 
+        activeModelId: id 
+      });
+      
+      // Update legacy settings for backward compatibility
+      await this.setApiKey(config.apiKey);
+      await this.setModel(config.model);
+      await this.setProviderSettings({
+        baseUrl: config.baseUrl,
+        useToolCalling: config.useToolCalling,
+        sendScreenshots: config.sendScreenshots,
+      });
+    }
+  }
+
+  async createModelConfiguration(data: {
+    name: string;
+    provider: string;
+    model: string;
+    apiKey: string;
+    baseUrl: string;
+    useToolCalling: boolean;
+    sendScreenshots: boolean;
+  }): Promise<ModelConfiguration> {
+    const config: ModelConfiguration = {
+      id: Math.random().toString(36).substring(2, 9),
+      ...data,
+      isActive: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    await this.saveModelConfiguration(config);
+    return config;
+  }
 }
 
-export const conversationStore = new ConversationStore(); 
+export const conversationStore = new ConversationStore();
+export type { ModelConfiguration }; 

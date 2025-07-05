@@ -14,6 +14,7 @@ import ChatInterface from './components/ChatInterface';
 import SettingsPopover from './components/SettingsPopover';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import ResizableSplitter from './components/ResizableSplitter';
+import DebugChatModal from './components/DebugChatModal';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
 
@@ -98,6 +99,7 @@ export default function CADClientPage() {
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [editorWidth, setEditorWidth] = useState(480);
+  const [showDebugChat, setShowDebugChat] = useState(false);
   const hasExecutedInitialCode = useRef(false);
 
   // Helper function to extract the most recent code from a conversation
@@ -443,6 +445,7 @@ export default function CADClientPage() {
   const handleProviderSettingsChange = (settings: {
     baseUrl: string;
     useToolCalling: boolean;
+    sendScreenshots: boolean;
   }) => {
     // Provider settings are stored in the conversation store
     // and will be used by the AI agent automatically
@@ -523,6 +526,10 @@ export default function CADClientPage() {
     }
   };
 
+  const handleDebugChat = () => {
+    setShowDebugChat(true);
+  };
+
   return (
     <div className={styles.pageContainer}>
       <header className={styles.header}>
@@ -543,7 +550,7 @@ export default function CADClientPage() {
         <div className={styles.workspace}>
           {/* Left Panel - CAD Viewer */}
           <div className={`${styles.viewerPanel} ${chatState === 'panel' ? styles.withChatPanel : ''} ${codeState === 'visible' ? styles.withCodePanel : ''}`}>
-            <CADViewer shapes={shapes} isMinimalView={chatState === 'minimal'} />
+            <CADViewer shapes={shapes} isMinimalView={chatState === 'minimal'} onDebugChat={handleDebugChat} />
           </div>
 
           {/* Middle Panel - Code Editor */}
@@ -652,6 +659,14 @@ export default function CADClientPage() {
         onLoadConversation={handleLoadConversation}
         onConversationRenamed={handleConversationRenamed}
         currentCode={code}
+      />
+
+      {/* Debug Chat Modal */}
+      <DebugChatModal
+        isOpen={showDebugChat}
+        onClose={() => setShowDebugChat(false)}
+        apiKey={apiKey}
+        model={model}
       />
     </div>
   );

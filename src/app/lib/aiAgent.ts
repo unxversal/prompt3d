@@ -145,12 +145,14 @@ ${REPLICAD_DOCS}
     // Get provider settings
     const providerSettings = await conversationStore.getProviderSettings();
 
-    // Capture screenshots if we have the capability
+    // Capture screenshots if enabled and we have the capability
     let screenshots: Screenshot[] = [];
-    try {
-      screenshots = await captureViewportScreenshots();
-    } catch (error) {
-      console.warn('Failed to capture screenshots:', error);
+    if (providerSettings.sendScreenshots) {
+      try {
+        screenshots = await captureViewportScreenshots();
+      } catch (error) {
+        console.warn('Failed to capture screenshots:', error);
+      }
     }
 
     // Define message format compatible with OpenAI API

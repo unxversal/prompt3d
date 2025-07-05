@@ -9,7 +9,8 @@ import {
   Maximize2, 
   Grid3X3, 
   Camera, 
-  Loader2
+  Loader2,
+  MessageCircle
 } from 'lucide-react';
 import Image from 'next/image';
 // WorkerShape interface moved to CADClientPage
@@ -32,6 +33,7 @@ const WireframeContext = createContext<boolean>(false);
 interface CADViewerProps {
   shapes: WorkerShape[];
   isMinimalView?: boolean;
+  onDebugChat?: () => void;
 }
 
 // Component for rendering a single CAD shape
@@ -246,7 +248,7 @@ function Scene({ shapes, isWireframe }: { shapes: WorkerShape[], isWireframe: bo
   );
 }
 
-export default function CADViewer({ shapes, isMinimalView }: CADViewerProps) {
+export default function CADViewer({ shapes, isMinimalView, onDebugChat }: CADViewerProps) {
   const [autoFit, setAutoFit] = useState(true);
   const [isWireframe, setIsWireframe] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -345,6 +347,17 @@ export default function CADViewer({ shapes, isMinimalView }: CADViewerProps) {
            <div className={styles.infoPanel}>
             Made with ❤️ by <a href="https://cxmpute.cloud" target="_blank" rel="noopener noreferrer" className={styles.infoPanelLink}>cxmpute.cloud</a>
           </div>
+          {onDebugChat && (
+            <div className={`${styles.infoPanel} ${styles.debugInfoPanel}`}>
+              <button
+                onClick={onDebugChat}
+                className={styles.debugButton}
+                title="Debug Chat"
+              >
+                <MessageCircle size={16} />
+              </button>
+            </div>
+          )}
           <div className={`${styles.infoPanel} ${styles.xInfoPanel}`}>
             <a href="https://x.com/joshuaokolo_" target="_blank" rel="noopener noreferrer">
               <Image src="/x.webp" alt="X Logo" width={16} height={16} className={styles.xLogo} />

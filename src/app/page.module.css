@@ -612,6 +612,31 @@
   padding-bottom: 6px;
 }
 
+.debugInfoPanel {
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.debugButton {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.debugButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #667eea;
+}
+
 /* Tooltip Styles */
 .tooltip {
   position: fixed;
