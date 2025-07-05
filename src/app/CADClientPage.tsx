@@ -13,6 +13,7 @@ import CADViewer from './components/CADViewer';
 import ChatInterface from './components/ChatInterface';
 import SettingsPopover from './components/SettingsPopover';
 import ChatHistoryModal from './components/ChatHistoryModal';
+import ResizableSplitter from './components/ResizableSplitter';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
 
@@ -40,26 +41,24 @@ interface ReplicadShape {
 // All Replicad functions (drawCircle, makeCuboid, union, etc.) are automatically
 // available in this editor.
 
-const DEFAULT_CODE = `import { draw, drawRoundedRectangle, drawCircle, drawPolygon, sketchCircle, sketchRectangle } from "replicad";
+const DEFAULT_CODE = `// Default demo shapes
+const cylinder = drawCircle(20).sketchOnPlane().extrude(50);
+const roundedRect = drawRoundedRectangle(40, 30, 5)
+  .sketchOnPlane()
+  .extrude(10);
 
-const main = () => {
-  // Create a base profile - rounded rectangle
-  const profile = drawRoundedRectangle(50, 30, 5)
-    .sketchOnPlane("XY")
-    .extrude(10);
-
-  // Create a cylindrical hole
-  const hole = sketchCircle(8)
-    .sketchOnPlane("XY", [0, 0, 5])
-    .extrude(15);
-
-  // Subtract the hole from the profile
-  const result = profile.cut(hole);
-
-  return result;
-};
-
-export default main;`;
+const meshedShapes = [
+  {
+    name: 'Cylinder',
+    faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+    edges: cylinder.meshEdges(),
+  },
+  {
+    name: 'Rounded Rectangle',
+    faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+    edges: roundedRect.meshEdges(),
+  },
+];`;
 
 // Component to handle code changes within Sandpack context
 function CodeEditor({ onCodeChange }: { onCodeChange: (code: string) => void }) {
@@ -98,7 +97,25 @@ export default function CADClientPage() {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [editorWidth, setEditorWidth] = useState(480);
   const hasExecutedInitialCode = useRef(false);
+
+  // Load saved editor width on startup
+  useEffect(() => {
+    const savedWidth = localStorage.getItem('cad-editor-width');
+    if (savedWidth) {
+      const width = parseInt(savedWidth, 10);
+      if (width >= 320 && width <= 800) {
+        setEditorWidth(width);
+      }
+    }
+  }, []);
+
+  // Save editor width when it changes
+  const handleEditorResize = useCallback((width: number) => {
+    setEditorWidth(width);
+    localStorage.setItem('cad-editor-width', width.toString());
+  }, []);
 
   // Load API key and model on startup
   useEffect(() => {
@@ -183,27 +200,8 @@ export default function CADClientPage() {
       const replicad = await import('replicad');
       const { syncGeometries } = await import('replicad-threejs-helper');
 
-      // If code is empty or default, use the demo code
-      const codeToExecute = codeToRun.trim() === DEFAULT_CODE.trim() || !codeToRun.trim() ? `
-        // Default demo shapes
-        const cylinder = drawCircle(20).sketchOnPlane().extrude(50);
-        const roundedRect = drawRoundedRectangle(40, 30, 5)
-          .sketchOnPlane()
-          .extrude(10);
-        
-        const meshedShapes = [
-          {
-            name: 'Cylinder',
-            faces: cylinder.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-            edges: cylinder.meshEdges(),
-          },
-          {
-            name: 'Rounded Rectangle',
-            faces: roundedRect.mesh({ tolerance: 0.05, angularTolerance: 30 }),
-            edges: roundedRect.meshEdges(),
-          },
-        ];
-      ` : codeToRun;
+      // If code is empty, use the default code
+      const codeToExecute = !codeToRun.trim() ? DEFAULT_CODE : codeToRun;
 
       // Remove any static import/export lines to avoid syntax errors inside AsyncFunction
       const sanitizedCode = codeToExecute
@@ -523,7 +521,8 @@ export default function CADClientPage() {
 
           {/* Middle Panel - Code Editor */}
           {codeState === 'visible' && (
-            <div className={styles.editorPanel}>
+            <>
+              <div className={styles.editorPanel} style={{ width: `${editorWidth}px` }}>
                 <div className={styles.sandpackContainer}>
                   <SandpackProvider
                     key={currentConversation?.id || 'default'}
@@ -552,7 +551,15 @@ export default function CADClientPage() {
                     </SandpackLayout>
                   </SandpackProvider>
                 </div>
-            </div>
+              </div>
+              <ResizableSplitter
+                onResize={handleEditorResize}
+                initialWidth={editorWidth}
+                minWidth={320}
+                maxWidth={800}
+                orientation="vertical"
+              />
+            </>
           )}
 
                     {/* Right Panel - Chat (when in panel mode) */}

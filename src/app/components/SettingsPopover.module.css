@@ -549,6 +549,23 @@
   cursor: not-allowed;
 }
 
+.configuredIndicator {
+  color: #10b981;
+  font-size: 12px;
+  margin-left: 6px;
+  font-weight: bold;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* Toggle Group */
 .toggleGroup {
   display: flex;

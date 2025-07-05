@@ -2,6 +2,111 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Resource } from 'sst';
 
+// Types for message content blocks
+interface ContentBlock {
+  type: string;
+  [key: string]: unknown;
+}
+
+interface Message {
+  role: string;
+  content: ContentBlock[] | string;
+  [key: string]: unknown;
+}
+
+// Function to remove thinking blocks from messages when thinking is disabled
+function filterThinkingBlocks(messages: Message[]): Message[] {
+  return messages.map((message) => {
+    // Only process messages with array content
+    if (!Array.isArray(message.content)) {
+      return message;
+    }
+
+    // Filter out thinking and redacted_thinking blocks
+    const filteredContent = message.content.filter((block: ContentBlock) => 
+      block.type !== 'thinking' && block.type !== 'redacted_thinking'
+    );
+
+    // If filtering removed all content, keep the original message to avoid empty messages
+    if (filteredContent.length === 0 && message.content.length > 0) {
+      console.warn('Filtering thinking blocks would result in empty message content, keeping original');
+      return message;
+    }
+
+    return {
+      ...message,
+      content: filteredContent
+    };
+  }).filter((message) => {
+    // Remove messages that would be completely empty after filtering
+    if (Array.isArray(message.content)) {
+      return message.content.length > 0;
+    }
+    return true; // Keep string content messages
+  });
+}
+
+// Function to ensure thinking blocks are properly ordered when thinking is enabled
+function ensureThinkingBlockOrder(messages: Message[]): Message[] {
+  return messages.map((message) => {
+    // Only process assistant messages with array content
+    if (message.role !== 'assistant' || !Array.isArray(message.content)) {
+      return message;
+    }
+
+    // Check if this message has tool_use blocks
+    const hasToolUse = message.content.some((block: ContentBlock) => block.type === 'tool_use');
+    
+    if (!hasToolUse) {
+      return message;
+    }
+
+    // Check if message already starts with thinking block
+    const startsWithThinking = message.content[0]?.type === 'thinking' || message.content[0]?.type === 'redacted_thinking';
+    
+    if (startsWithThinking) {
+      return message;
+    }
+
+    // Find thinking blocks and non-thinking blocks
+    const thinkingBlocks = message.content.filter((block: ContentBlock) => 
+      block.type === 'thinking' || block.type === 'redacted_thinking'
+    );
+    
+    const nonThinkingBlocks = message.content.filter((block: ContentBlock) => 
+      block.type !== 'thinking' && block.type !== 'redacted_thinking'
+    );
+
+    // If we have thinking blocks, move them to the front
+    if (thinkingBlocks.length > 0) {
+      return {
+        ...message,
+        content: [...thinkingBlocks, ...nonThinkingBlocks]
+      };
+    }
+
+    // CRITICAL FIX: If no thinking blocks found but tool_use blocks exist,
+    // return null to filter out this message entirely when thinking is enabled
+    return null;
+  }).filter(message => message !== null); // Remove null messages
+}
+
+// Main function to process messages based on thinking state
+function processMessagesForThinking(messages: Message[], isThinkingEnabled: boolean, isClaudeModel: boolean): Message[] {
+  if (!isClaudeModel) {
+    // For non-Claude models, always filter out thinking blocks
+    return filterThinkingBlocks(messages);
+  }
+
+  if (isThinkingEnabled) {
+    // For Claude models with thinking enabled, ensure proper ordering
+    return ensureThinkingBlockOrder(messages);
+  } else {
+    // For Claude models with thinking disabled, filter out thinking blocks
+    return filterThinkingBlocks(messages);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -68,21 +173,37 @@ export async function POST(request: NextRequest) {
       defaultHeaders,
     });
 
+    // Check if this is a Claude model for thinking support
+    const isClaudeModel = model.toLowerCase().includes('claude');
+    
+    // Determine if thinking will be enabled for this request
+    const willUseThinking = isClaudeModel && (useToolCalling && tools && tools.length > 0);
+    
+    // Process messages based on thinking state
+    const processedMessages = processMessagesForThinking(messages, willUseThinking, isClaudeModel);
+    
+    // Log thinking state for debugging
+    if (isClaudeModel) {
+      console.log(`Claude model detected. Thinking enabled: ${willUseThinking}`);
+      const originalMessageCount = messages.length;
+      const processedMessageCount = processedMessages.length;
+      if (originalMessageCount !== processedMessageCount) {
+        console.log(`Message count changed from ${originalMessageCount} to ${processedMessageCount} after processing`);
+      }
+    }
+    
     // Prepare request parameters based on output mode
     const baseParams = {
       model,
-      messages,
+      messages: processedMessages,
       temperature,
       max_tokens,
     };
-
-    // Check if this is a Claude model for thinking support
-    const isClaudeModel = model.toLowerCase().includes('claude');
     
     // Adjust temperature for Claude models with thinking enabled
     const adjustedBaseParams = {
       ...baseParams,
-      ...(isClaudeModel && { temperature: 1 }),
+      ...(isClaudeModel && willUseThinking && { temperature: 1 }),
     };
 
     // Add tools or response_format based on useToolCalling preference
@@ -91,7 +212,7 @@ export async function POST(request: NextRequest) {
         ...adjustedBaseParams,
         tools,
         tool_choice,
-        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
+        ...(isClaudeModel && willUseThinking && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
       // console.log('Request params with tools:', paramsWithTools);
       console.log('Request params with tools:');
@@ -102,7 +223,7 @@ export async function POST(request: NextRequest) {
       const paramsWithFormat = {
         ...adjustedBaseParams,
         response_format,
-        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
+        ...(isClaudeModel && willUseThinking && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
       // console.log('Request params with response format:', paramsWithFormat);
       console.log('Request params with response format:');
@@ -112,7 +233,7 @@ export async function POST(request: NextRequest) {
     } else {
       const basicParams = {
         ...adjustedBaseParams,
-        ...(isClaudeModel && { thinking: { type: "enabled", budget_tokens: 10000 } }),
+        ...(isClaudeModel && willUseThinking && { thinking: { type: "enabled", budget_tokens: 10000 } }),
       };
       // console.log('Request params basic:', basicParams);
       console.log('Request params basic:');

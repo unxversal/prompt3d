@@ -54,32 +54,70 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
   const [useToolCalling, setUseToolCalling] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState('OpenRouter');
   const [customProvider, setCustomProvider] = useState(false);
+  const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
   const { theme } = useTheme();
 
   const currentProvider = PRESET_PROVIDERS.find(p => p.name === selectedProvider);
 
   const loadSettings = useCallback(async () => {
     try {
-      const savedApiKey = await conversationStore.getApiKey();
-      const savedModel = await conversationStore.getModel();
+      // Load the currently active provider from legacy settings
       const providerSettings = await conversationStore.getProviderSettings();
       
-      if (savedApiKey) {
-        setApiKey(savedApiKey);
-      }
-      
-      setModel(savedModel);
-      setBaseUrl(providerSettings.baseUrl);
-      setUseToolCalling(providerSettings.useToolCalling);
-      
-      // Detect provider type
+      // Detect current provider type
       const provider = PRESET_PROVIDERS.find(p => providerSettings.baseUrl.includes(new URL(p.baseUrl).hostname));
+      let currentProvider = 'Custom';
       if (provider) {
+        currentProvider = provider.name;
         setSelectedProvider(provider.name);
         setCustomProvider(false);
       } else {
         setCustomProvider(true);
       }
+      
+      // Load provider-specific settings
+      const providerConfig = await conversationStore.getProviderConfig(currentProvider);
+      
+      // If no provider-specific settings exist, use legacy settings
+      if (!providerConfig.apiKey && !providerConfig.model) {
+        const savedApiKey = await conversationStore.getApiKey();
+        const savedModel = await conversationStore.getModel();
+        
+        if (savedApiKey) {
+          setApiKey(savedApiKey);
+        }
+        setModel(savedModel);
+        setBaseUrl(providerSettings.baseUrl);
+        setUseToolCalling(providerSettings.useToolCalling);
+        
+        // Migrate legacy settings to provider-specific settings
+        if (savedApiKey || savedModel) {
+          await conversationStore.setProviderConfig(currentProvider, {
+            apiKey: savedApiKey || '',
+            model: savedModel,
+            baseUrl: providerSettings.baseUrl,
+            useToolCalling: providerSettings.useToolCalling,
+          });
+        }
+      } else {
+        // Use provider-specific settings
+        setApiKey(providerConfig.apiKey || '');
+        setModel(providerConfig.model || '');
+        setBaseUrl(providerConfig.baseUrl || providerSettings.baseUrl);
+        setUseToolCalling(providerConfig.useToolCalling ?? providerSettings.useToolCalling);
+      }
+
+      // Load all configured providers to show indicators
+      const allProviderConfigs = await conversationStore.getAllProviderConfigs();
+      const configured = new Set<string>();
+      
+      for (const [providerName, config] of Object.entries(allProviderConfigs)) {
+        if (config.apiKey && config.apiKey.trim()) {
+          configured.add(providerName);
+        }
+      }
+      
+      setConfiguredProviders(configured);
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
@@ -91,24 +129,49 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     }
   }, [isOpen, loadSettings]);
 
-  const handleProviderChange = (providerName: string) => {
+  const handleProviderChange = async (providerName: string) => {
     setSelectedProvider(providerName);
-    setModel(''); // Clear previous model
-
-    if (providerName === 'Custom') {
-      setCustomProvider(true);
-      setBaseUrl('');
-    } else {
-      setCustomProvider(false);
-      const provider = PRESET_PROVIDERS.find(p => p.name === providerName);
-      if (provider) {
-        setBaseUrl(provider.baseUrl);
-        if (provider.defaultModel) {
-          setModel(provider.defaultModel);
+    
+    // Load provider-specific settings
+    try {
+      const providerConfig = await conversationStore.getProviderConfig(providerName);
+      
+      if (providerName === 'Custom') {
+        setCustomProvider(true);
+        setBaseUrl(providerConfig.baseUrl || '');
+        setApiKey(providerConfig.apiKey || '');
+        setModel(providerConfig.model || '');
+        setUseToolCalling(providerConfig.useToolCalling ?? true);
+      } else {
+        setCustomProvider(false);
+        const provider = PRESET_PROVIDERS.find(p => p.name === providerName);
+        if (provider) {
+          // Load saved settings for this provider, or use defaults
+          setBaseUrl(providerConfig.baseUrl || provider.baseUrl);
+          setApiKey(providerConfig.apiKey || '');
+          setModel(providerConfig.model || provider.defaultModel || '');
+          setUseToolCalling(providerConfig.useToolCalling ?? provider.supportsToolCalling);
         }
-        
-        // Reset tool calling preference based on provider capabilities
-        setUseToolCalling(provider.supportsToolCalling);
+      }
+    } catch (error) {
+      console.error('Failed to load provider settings:', error);
+      
+      // Fallback to provider defaults
+      if (providerName === 'Custom') {
+        setCustomProvider(true);
+        setBaseUrl('');
+        setApiKey('');
+        setModel('');
+        setUseToolCalling(true);
+      } else {
+        setCustomProvider(false);
+        const provider = PRESET_PROVIDERS.find(p => p.name === providerName);
+        if (provider) {
+          setBaseUrl(provider.baseUrl);
+          setApiKey('');
+          setModel(provider.defaultModel || '');
+          setUseToolCalling(provider.supportsToolCalling);
+        }
       }
     }
   };
@@ -143,6 +206,17 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
 
     setIsLoading(true);
     try {
+      const providerName = customProvider ? 'Custom' : selectedProvider;
+      
+      // Save provider-specific settings
+      await conversationStore.setProviderConfig(providerName, {
+        apiKey: apiKey.trim(),
+        model: model.trim(),
+        baseUrl: baseUrl.trim(),
+        useToolCalling,
+      });
+      
+      // Also update global settings for backwards compatibility and current session
       await conversationStore.setApiKey(apiKey.trim());
       await conversationStore.setModel(model.trim());
       await conversationStore.setProviderSettings({
@@ -160,7 +234,12 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
         });
       }
       
-      toast.success('Settings saved successfully');
+      // Update configured providers list
+      const newConfigured = new Set(configuredProviders);
+      newConfigured.add(providerName);
+      setConfiguredProviders(newConfigured);
+      
+      toast.success(`Settings saved for ${providerName}`);
       onClose();
     } catch {
       toast.error('Failed to save settings');
@@ -171,10 +250,27 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
 
   const handleClear = async () => {
     try {
+      const providerName = customProvider ? 'Custom' : selectedProvider;
+      
+      // Clear provider-specific settings
+      await conversationStore.setProviderConfig(providerName, {
+        apiKey: '',
+        model: model, // Keep the model
+        baseUrl: baseUrl, // Keep the base URL
+        useToolCalling: useToolCalling, // Keep tool calling preference
+      });
+      
+      // Also clear global settings for current session
       await conversationStore.setApiKey('');
       setApiKey('');
       onApiKeyChange('');
-      toast.success('API key cleared');
+      
+      // Update configured providers list
+      const newConfigured = new Set(configuredProviders);
+      newConfigured.delete(providerName);
+      setConfiguredProviders(newConfigured);
+      
+      toast.success(`API key cleared for ${providerName}`);
     } catch {
       toast.error('Failed to clear API key');
     }
@@ -216,6 +312,11 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                     disabled={isLoading}
                   >
                     {provider.name}
+                    {configuredProviders.has(provider.name) && (
+                      <span className={styles.configuredIndicator} title="Configured">
+                        ●
+                      </span>
+                    )}
                   </button>
                 ))}
                 <button
@@ -226,6 +327,11 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                   disabled={isLoading}
                 >
                   Custom
+                  {configuredProviders.has('Custom') && (
+                    <span className={styles.configuredIndicator} title="Configured">
+                      ●
+                    </span>
+                  )}
                 </button>
               </div>
             </div>

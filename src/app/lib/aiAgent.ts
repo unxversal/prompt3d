@@ -156,16 +156,8 @@ ${REPLICAD_DOCS}
     // Define message format compatible with OpenAI API
     interface ChatMessage {
       role: string;
-      content?: string | Array<{ type: string; text?: string; image_url?: { url: string }; [key: string]: unknown }>;
+      content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
       tool_call_id?: string;
-      tool_calls?: Array<{
-        id: string;
-        type: string;
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }>;
     }
 
     // Detect if we are using an Anthropic Claude model (which requires special handling)
@@ -173,12 +165,26 @@ ${REPLICAD_DOCS}
 
     // Prepare conversation history - filter out messages with malformed tool calls
     const conversationMessages = context.conversationHistory
+      .filter(msg => {
+        // Keep user messages
+        if (msg.role === 'user') return true;
+        
+        // Claude models with thinking enabled have strict validation rules –
+        // they complain if previous assistant messages do not start with a `thinking` block.
+        // Since we don't store thinking blocks in our conversation history, we must
+        // filter out ALL assistant messages for Claude models to avoid validation errors.
+        // For non-Claude models we retain assistant messages without function calls.
+        if (!isClaudeModel && msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
+        
+        // For Claude models: Skip ALL assistant messages to avoid thinking validation
+        // For other models: Skip assistant messages with function calls (they need tool responses we don't store)
+        return false;
+      })
       .map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
       }))
-      .filter(msg => (typeof msg.content === 'string' ? msg.content.trim().length > 0 : !!msg.content)); // Filter out empty messages
-
+      .filter(msg => msg.content.trim().length > 0); // Filter out empty messages
 
     // Count existing images in conversation to respect 10 image limit
     const existingImageCount = conversationMessages.reduce((count, msg) => {
@@ -329,36 +335,19 @@ Please implement this request directly using the available tools. Use write_code
 
         console.log('Received message', message);
 
-        // Add assistant message to conversation
-        messages.push(message);
+        // For Claude models with thinking enabled, don't add assistant messages with tool calls 
+        // to avoid validation errors on subsequent iterations
+        const isThinkingEnabled = isClaudeModel && providerSettings.useToolCalling && AI_FUNCTIONS.length > 0;
+        const shouldSkipAssistantMessage = isClaudeModel && isThinkingEnabled && message.tool_calls && message.tool_calls.length > 0;
+        
+        if (!shouldSkipAssistantMessage) {
+          // Add assistant message to conversation
+          messages.push(message);
+        }
 
         // Handle tool calls if present (when useToolCalling is enabled)
         if (message.tool_calls && message.tool_calls.length > 0) {
           console.log(`Processing ${message.tool_calls.length} tool calls`);
-          
-          // Guard for Anthropic models with thinking enabled
-          // We need to re-format the assistant message to include thinking blocks
-          // alongside tool_use blocks in the content array.
-          if (isClaudeModel && Array.isArray(message.content)) {
-            const lastMessage = messages[messages.length - 1];
-            if (lastMessage.role === 'assistant') {
-              const thinkingBlocks = message.content.filter(
-                (block: { type: string }) => block.type === 'thinking' || block.type === 'redacted_thinking'
-              );
-
-              if (thinkingBlocks.length > 0) {
-                const toolUseBlocks = (message.tool_calls || []).map(tc => ({
-                  type: 'tool_use',
-                  id: tc.id,
-                  name: tc.function.name,
-                  input: JSON.parse(tc.function.arguments),
-                }));
-
-                lastMessage.content = [...thinkingBlocks, ...toolUseBlocks];
-                delete lastMessage.tool_calls; // remove tool_calls as it's now in content
-              }
-            }
-          }
           
           for (const toolCall of message.tool_calls) {
             const functionCall: FunctionCall = {

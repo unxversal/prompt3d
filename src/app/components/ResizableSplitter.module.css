@@ -1,0 +1,100 @@
+.splitter {
+  position: relative;
+  background: #1a1a1a;
+  transition: background-color 0.15s ease;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.splitter:hover {
+  background: #333333;
+}
+
+.splitter.dragging {
+  background: #555555;
+}
+
+.vertical {
+  width: 6px;
+  cursor: col-resize;
+  min-height: 100%;
+}
+
+.horizontal {
+  height: 6px;
+  cursor: row-resize;
+  min-width: 100%;
+}
+
+.splitterHandle {
+  position: absolute;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.vertical .splitterHandle {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: #666666;
+  border-radius: 1px;
+}
+
+.horizontal .splitterHandle {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 2px;
+  background: #666666;
+  border-radius: 1px;
+}
+
+.splitter:hover .splitterHandle {
+  background: #888888;
+}
+
+.splitter.dragging .splitterHandle {
+  background: #aaaaaa;
+}
+
+/* Visual feedback during dragging */
+.splitter.dragging::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+  animation: pulse 0.8s ease-in-out infinite alternate;
+}
+
+.dragIndicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 100;
+  border: 1px solid #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+} 
