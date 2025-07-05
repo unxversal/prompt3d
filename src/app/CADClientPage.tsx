@@ -100,6 +100,21 @@ export default function CADClientPage() {
   const [editorWidth, setEditorWidth] = useState(480);
   const hasExecutedInitialCode = useRef(false);
 
+  // Helper function to extract the most recent code from a conversation
+  const extractCodeFromConversation = useCallback((conversation: Conversation): string | undefined => {
+    for (let i = conversation.messages.length - 1; i >= 0; i--) {
+      const message = conversation.messages[i];
+      const funcCall = message.metadata?.functionCall;
+      if (funcCall && (funcCall.name === 'write_code' || funcCall.name === 'edit_code')) {
+        const codeArg = (funcCall.arguments as Record<string, unknown>)?.code as string | undefined;
+        if (typeof codeArg === 'string' && codeArg.trim().length > 0) {
+          return codeArg;
+        }
+      }
+    }
+    return undefined;
+  }, []);
+
   // Load saved editor width on startup
   useEffect(() => {
     const savedWidth = localStorage.getItem('cad-editor-width');
@@ -117,7 +132,7 @@ export default function CADClientPage() {
     localStorage.setItem('cad-editor-width', width.toString());
   }, []);
 
-  // Load API key and model on startup
+  // Load API key, model, and last conversation on startup
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -128,12 +143,34 @@ export default function CADClientPage() {
           setApiKey(savedApiKey);
         }
         setModel(savedModel);
+
+        // Load the last conversation and its code
+        const conversations = await conversationStore.getAllConversations();
+        const latestConversation = conversations[conversations.length - 1];
+        
+        if (latestConversation) {
+          console.log('🔄 Loading latest conversation on startup:', latestConversation.id);
+          setCurrentConversation(latestConversation);
+          
+          const foundCode = extractCodeFromConversation(latestConversation);
+          
+          if (foundCode) {
+            console.log('📝 Found code from conversation, setting it:', foundCode.slice(0, 100) + '...');
+            setCode(foundCode);
+          } else {
+            console.log('📝 No code found in conversation, using default');
+            setCode(DEFAULT_CODE);
+          }
+        } else {
+          console.log('📝 No conversations found, using default code');
+          setCode(DEFAULT_CODE);
+        }
       } catch (error) {
         console.error('Failed to load settings:', error);
       }
     };
     loadSettings();
-  }, []);
+  }, [ extractCodeFromConversation ]);
 
     // Initialize OpenCascade once
   useEffect(() => {
@@ -452,30 +489,20 @@ export default function CADClientPage() {
   };
 
   const handleLoadConversation = (conversation: Conversation) => {
+    console.log('🔄 Loading conversation:', conversation.id);
     setCurrentConversation(conversation);
     setShowChatHistory(false);
     
-    // Attempt to retrieve the most recent code snapshot stored in messages
-    let foundCode: string | undefined;
-
-    for (let i = conversation.messages.length - 1; i >= 0; i--) {
-      const message = conversation.messages[i];
-      const funcCall = message.metadata?.functionCall;
-      if (funcCall && (funcCall.name === 'write_code' || funcCall.name === 'edit_code')) {
-        const codeArg = (funcCall.arguments as Record<string, unknown>)?.code as string | undefined;
-        if (typeof codeArg === 'string' && codeArg.trim().length > 0) {
-          foundCode = codeArg;
-          break;
-        }
-      }
-    }
+    const foundCode = extractCodeFromConversation(conversation);
 
     if (foundCode) {
+      console.log('📝 Loading code from conversation:', foundCode.slice(0, 100) + '...');
       // Load the code snapshot from history
       setCode(foundCode);
       // Execute the code to update the CAD viewer
       executeCode(foundCode);
     } else {
+      console.log('📝 No code found in conversation, using default');
       // Conversation has no generated code yet – reset to default template
       setCode(DEFAULT_CODE);
       // Execute the default code to show something in the viewer

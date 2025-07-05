@@ -160,24 +160,16 @@ ${REPLICAD_DOCS}
       tool_call_id?: string;
     }
 
-    // Detect if we are using an Anthropic Claude model (which requires special handling)
-    const isClaudeModel = this.model.toLowerCase().includes('claude');
-
     // Prepare conversation history - filter out messages with malformed tool calls
     const conversationMessages = context.conversationHistory
       .filter(msg => {
         // Keep user messages
         if (msg.role === 'user') return true;
         
-        // Claude models with thinking enabled have strict validation rules –
-        // they complain if previous assistant messages do not start with a `thinking` block.
-        // Since we don't store thinking blocks in our conversation history, we must
-        // filter out ALL assistant messages for Claude models to avoid validation errors.
-        // For non-Claude models we retain assistant messages without function calls.
-        if (!isClaudeModel && msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
+        // Keep assistant messages without function calls (they're just text responses)
+        if (msg.role === 'assistant' && !msg.metadata?.functionCall) return true;
         
-        // For Claude models: Skip ALL assistant messages to avoid thinking validation
-        // For other models: Skip assistant messages with function calls (they need tool responses we don't store)
+        // Skip assistant messages with function calls (they need tool responses we don't store)
         return false;
       })
       .map(msg => ({
@@ -335,15 +327,8 @@ Please implement this request directly using the available tools. Use write_code
 
         console.log('Received message', message);
 
-        // For Claude models with thinking enabled, don't add assistant messages with tool calls 
-        // to avoid validation errors on subsequent iterations
-        const isThinkingEnabled = isClaudeModel && providerSettings.useToolCalling && AI_FUNCTIONS.length > 0;
-        const shouldSkipAssistantMessage = isClaudeModel && isThinkingEnabled && message.tool_calls && message.tool_calls.length > 0;
-        
-        if (!shouldSkipAssistantMessage) {
-          // Add assistant message to conversation
-          messages.push(message);
-        }
+        // Add assistant message to conversation
+        messages.push(message);
 
         // Handle tool calls if present (when useToolCalling is enabled)
         if (message.tool_calls && message.tool_calls.length > 0) {
@@ -392,7 +377,7 @@ Please implement this request directly using the available tools. Use write_code
 
         // Parse structured JSON response (for non-tool-calling mode)
 
-        // Handle Anthropic block-based content (e.g. thinking/text arrays)
+        // Handle block-based content (text arrays from some providers)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (Array.isArray((message as any).content)) {
           try {
@@ -400,9 +385,7 @@ Please implement this request directly using the available tools. Use write_code
             const blocks = (message as any).content as Array<any>;
             let aggregated = '';
             for (const block of blocks) {
-              if (block.type === 'thinking' && block.thinking) {
-                aggregated += `🤔 ${block.thinking}\n\n`;
-              } else if (block.type === 'text' && block.text) {
+              if (block.type === 'text' && block.text) {
                 aggregated += `${block.text}\n\n`;
               }
             }
