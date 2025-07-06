@@ -200,7 +200,7 @@
   border-color: #ef4444;
 }
 
-.toggleButton {
+.inputWrapper .toggleButton {
   position: absolute;
   right: 8px;
   padding: 8px;
@@ -211,20 +211,20 @@
   transition: all 0.2s ease;
 }
 
-.dark .toggleButton {
+.dark .inputWrapper .toggleButton {
   color: #a1a1aa;
 }
 
-.light .toggleButton {
+.light .inputWrapper .toggleButton {
   color: #6b7280;
 }
 
-.dark .toggleButton:hover {
+.dark .inputWrapper .toggleButton:hover {
   background: #374151;
   color: #e4e4e7;
 }
 
-.light .toggleButton:hover {
+.light .inputWrapper .toggleButton:hover {
   background: #f3f4f6;
   color: #374151;
 }

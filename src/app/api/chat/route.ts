@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       };
       console.log('Making request with tools:', tools.length);
       const completion = await openai.chat.completions.create(paramsWithTools);
+      console.log('Completion:', completion);
       return NextResponse.json(completion);
     } else if (!useToolCalling && response_format) {
       const paramsWithFormat = {
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
       };
       console.log('Making request with JSON response format');
       const completion = await openai.chat.completions.create(paramsWithFormat);
+      console.log('Completion:', completion);
       return NextResponse.json(completion);
     } else {
       console.log('Making basic request without tools or response format');

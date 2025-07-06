@@ -11,6 +11,7 @@ interface DebugMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  hasScreenshot?: boolean;
 }
 
 interface DebugChatModalProps {
@@ -81,7 +82,20 @@ const JSON_SCHEMA = {
   }
 };
 
-type TestMode = 'normal' | 'tool_calling' | 'json';
+type TestMode = 'normal' | 'tool_calling' | 'json' | 'vision';
+
+// Function to extract thinking and clean content from Ollama responses
+const extractThinkingFromContent = (content: string): { thinking: string | null; cleanContent: string } => {
+  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+  if (!thinkMatch) {
+    return { thinking: null, cleanContent: content };
+  }
+  
+  const thinking = thinkMatch[1].trim();
+  const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+  
+  return { thinking, cleanContent };
+};
 
 export default function DebugChatModal({ isOpen, onClose, apiKey, model }: DebugChatModalProps) {
   const [messages, setMessages] = useState<DebugMessage[]>([]);
@@ -118,6 +132,7 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
       role: 'user',
       content: inputValue.trim(),
       timestamp: new Date(),
+      hasScreenshot: testMode === 'vision',
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -128,11 +143,52 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
       // Get provider settings
       const providerSettings = await conversationStore.getProviderSettings();
       
+      // Capture screenshot if in vision mode
+      let screenshot: string | null = null;
+      if (testMode === 'vision') {
+        screenshot = await captureScreenshot();
+        if (!screenshot) {
+          return; // captureScreenshot already shows error toast
+        }
+      }
+      
       // Build message history for the API
-      const apiMessages = [...messages, userMessage].map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+      let apiMessages;
+      
+      if (testMode === 'vision' && screenshot) {
+        // For vision mode, only include the current message with screenshot
+        // and remove any old screenshots from history to keep it clean
+        const textOnlyMessages = messages
+          .filter(msg => !Array.isArray(msg.content))
+          .map(msg => ({
+            role: msg.role,
+            content: msg.content,
+          }));
+        
+        apiMessages = [
+          ...textOnlyMessages,
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: userMessage.content,
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: screenshot
+                }
+              }
+            ]
+          }
+        ];
+      } else {
+        apiMessages = [...messages, userMessage].map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+      }
 
       let systemMessage = 'You are a helpful AI assistant. Respond concisely and helpfully to user questions.';
       
@@ -140,6 +196,8 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
         systemMessage = 'You are a helpful AI assistant. You MUST use the send_test_response function to respond to all user messages. Do not respond with regular text.';
       } else if (testMode === 'json') {
         systemMessage = 'You are a helpful AI assistant. You MUST respond with a JSON object containing "message" (string) and "success" (boolean) fields. Do not respond with regular text.';
+      } else if (testMode === 'vision') {
+        systemMessage = 'You are a helpful AI assistant with vision capabilities. You can see and analyze 3D models/scenes. Describe what you see in the image and respond helpfully to user questions about it.';
       }
 
       const requestBody: Record<string, unknown> = {
@@ -185,11 +243,39 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
         throw new Error(errorData?.error || `API request failed: ${response.status}`);
       }
 
+      
+
       const data: ChatCompletionResponse = await response.json();
+      console.log("data");
+      console.log(data);
       const aiMessage = data.choices[0]?.message;
+
+      console.log("aiMessage");
+      console.log(aiMessage);
 
       if (!aiMessage) {
         throw new Error('No response from AI');
+      }
+
+      // Extract thinking content if present (for Ollama thinking models)
+      let thinking: string | null = null;
+      let processedContent = aiMessage.content || '';
+      
+      if (aiMessage.content) {
+        const extracted = extractThinkingFromContent(aiMessage.content);
+        thinking = extracted.thinking;
+        processedContent = extracted.cleanContent;
+      }
+
+      // Show thinking content as a system message if present
+      if (thinking) {
+        const thinkingMessage: DebugMessage = {
+          id: Math.random().toString(36).substring(2, 9),
+          role: 'assistant',
+          content: `[Thinking] ${thinking}`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, thinkingMessage]);
       }
 
       // Handle tool calling response
@@ -223,15 +309,15 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
             toast.error('Failed to parse tool call arguments');
           }
         }
-      } else if (testMode === 'json' && aiMessage.content) {
-        // Handle JSON mode response
+      } else if (testMode === 'json' && processedContent) {
+        // Handle JSON mode response - use processedContent instead of aiMessage.content
         try {
-          const jsonResponse = JSON.parse(aiMessage.content);
+          const jsonResponse = JSON.parse(processedContent);
           const success = jsonResponse.success === true;
           const message = jsonResponse.message || 'JSON response received';
           
           if (success) {
-            toast.success(`JSON Success: ${message}`, {
+            toast.success(`${message}`, {
               description: 'The AI successfully responded with structured JSON',
             });
           } else {
@@ -255,20 +341,27 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
           const systemMessage: DebugMessage = {
             id: Math.random().toString(36).substring(2, 9),
             role: 'assistant',
-            content: `[Invalid JSON] Raw response: ${aiMessage.content}`,
+            content: `[Invalid JSON] Raw response: ${processedContent}`,
             timestamp: new Date(),
           };
           setMessages(prev => [...prev, systemMessage]);
         }
-      } else if (testMode === 'normal' && aiMessage.content) {
-        // Regular text response
+      } else if ((testMode === 'normal' || testMode === 'vision') && processedContent) {
+        // Regular text response (normal mode or vision mode) - use processedContent
         const assistantMessage: DebugMessage = {
           id: Math.random().toString(36).substring(2, 9),
           role: 'assistant',
-          content: aiMessage.content,
+          content: processedContent,
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, assistantMessage]);
+        
+        // For vision mode, also show a toast indicating vision was processed
+        if (testMode === 'vision') {
+          toast.success('Vision Analysis Complete', {
+            description: 'AI has analyzed the 3D viewport screenshot',
+          });
+        }
       } else {
         throw new Error('No valid response from AI');
       }
@@ -304,6 +397,24 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
     }
   };
 
+  const captureScreenshot = async (): Promise<string | null> => {
+    try {
+      // Find the CAD viewer canvas
+      const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+      if (!canvas) {
+        throw new Error('No 3D viewport found');
+      }
+      
+      // Capture screenshot as data URL
+      const dataUrl = canvas.toDataURL('image/png');
+      return dataUrl;
+    } catch (error) {
+      console.error('Failed to capture screenshot:', error);
+      toast.error('Failed to capture 3D viewport screenshot');
+      return null;
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -326,6 +437,7 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                 <option value="normal">Normal Chat</option>
                 <option value="tool_calling">Tool Calling</option>
                 <option value="json">JSON Schema</option>
+                <option value="vision">Vision Testing</option>
               </select>
             </div>
             <button onClick={clearChat} className={styles.clearButton}>
@@ -346,7 +458,9 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                 <p className={styles.emptySubtext}>
                   {testMode === 'tool_calling' 
                     ? 'Tool calling mode: AI responses will appear as toasts'
-                    : 'JSON mode: AI responses will appear as toasts'
+                    : testMode === 'json'
+                    ? 'JSON mode: AI responses will appear as toasts'
+                    : 'Vision mode: Screenshots included with each message'
                   }
                 </p>
               ) : (
@@ -364,12 +478,19 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                     message.role === 'user' ? styles.userMessage : styles.assistantMessage
                   }`}
                 >
-                  <div className={styles.messageContent}>
-                    <div className={styles.messageText}>{message.content}</div>
-                    <div className={styles.messageTime}>
-                      {message.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
+                                        <div className={styles.messageContent}>
+                        <div className={styles.messageText}>
+                          {message.hasScreenshot && (
+                            <span className={styles.screenshotIndicator}>
+                              📷 
+                            </span>
+                          )}
+                          {message.content}
+                        </div>
+                        <div className={styles.messageTime}>
+                          {message.timestamp.toLocaleTimeString()}
+                        </div>
+                      </div>
                 </div>
               ))}
               {isLoading && (
@@ -390,7 +511,12 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
         <div className={styles.inputContainer}>
           {testMode !== 'normal' && (
             <div className={styles.toolCallIndicator}>
-              {testMode === 'tool_calling' ? '🔧 Tool calling mode active' : '📄 JSON schema mode active'}
+              {testMode === 'tool_calling' 
+                ? '🔧 Tool calling mode active' 
+                : testMode === 'json'
+                ? '📄 JSON schema mode active'
+                : '👁️ Vision testing mode active'
+              }
             </div>
           )}
           <div className={styles.inputRow}>
@@ -405,6 +531,8 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                   ? "Test tool calling (response will appear as toast)..."
                   : testMode === 'json'
                   ? "Test JSON schema (response will appear as toast)..."
+                  : testMode === 'vision'
+                  ? "Ask about the 3D model (screenshot will be included)..."
                   : "Type a message to test the AI endpoint..."
               }
               className={styles.input}

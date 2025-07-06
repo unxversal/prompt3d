@@ -90,8 +90,8 @@ export default function CADClientPage() {
   const [replicadShapes, setReplicadShapes] = useState<ReplicadShape[]>([]);  // Store original shapes for export
   const [isExecuting, setIsExecuting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [chatState, setChatState] = useState<'minimal' | 'panel'>('minimal');
-  const [codeState, setCodeState] = useState<'hidden' | 'visible'>('hidden');
+  const [chatState, setChatState] = useState<'panel' | 'minimal'>('minimal');
+  const [codeState, setCodeState] = useState<'visible' | 'hidden'>('hidden');
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [model, setModel] = useState<string>('google/gemini-2.0-flash-exp:free');
   const [showSettings, setShowSettings] = useState(false);
@@ -100,6 +100,7 @@ export default function CADClientPage() {
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [editorWidth, setEditorWidth] = useState(480);
   const [showDebugChat, setShowDebugChat] = useState(false);
+  const [currentModelName, setCurrentModelName] = useState<string>('');
   const hasExecutedInitialCode = useRef(false);
 
   // Helper function to extract the most recent code from a conversation
@@ -224,6 +225,36 @@ export default function CADClientPage() {
 
     initializeOpenCascade();
   }, [isInitialized]);
+
+  // Initialize settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const savedApiKey = await conversationStore.getApiKey();
+        const savedModel = await conversationStore.getModel();
+        const activeConfig = await conversationStore.getActiveModelConfiguration();
+        
+        if (savedApiKey) {
+          setApiKey(savedApiKey);
+        }
+        if (savedModel) {
+          setModel(savedModel);
+        }
+        
+        // Load current model name from active configuration
+        if (activeConfig) {
+          setCurrentModelName(activeConfig.name);
+        } else {
+          // Fallback to just the model string if no configuration exists
+          setCurrentModelName(savedModel || 'google/gemini-2.0-flash-exp:free');
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    
+    loadSettings();
+  }, []);
 
   // Execute current code
   const executeCode = useCallback(async (codeToRun: string) => {
@@ -440,6 +471,21 @@ export default function CADClientPage() {
 
   const handleModelChange = (newModel: string) => {
     setModel(newModel);
+    // Update the model name display as well
+    const loadActiveModelName = async () => {
+      try {
+        const activeConfig = await conversationStore.getActiveModelConfiguration();
+        if (activeConfig) {
+          setCurrentModelName(activeConfig.name);
+        } else {
+          setCurrentModelName(newModel);
+        }
+      } catch (error) {
+        console.error('Failed to load active model name:', error);
+        setCurrentModelName(newModel);
+      }
+    };
+    loadActiveModelName();
   };
 
   const handleProviderSettingsChange = (settings: {
@@ -541,6 +587,9 @@ export default function CADClientPage() {
         >
           <Image src="/6.png" alt="C3D Logo" className={styles.logo} width={10} height={10} />
           <h1 className={styles.title}>C3D CAD</h1>
+          {currentModelName && (
+            <span className={styles.modelName}>• {currentModelName}</span>
+          )}
         </a>
         <p className={styles.subtitle}>An agentic, code-first CAD editor.</p>
       </header>

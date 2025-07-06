@@ -44,6 +44,15 @@ const PRESET_PROVIDERS = [
     placeholder: 'sk-...',
     defaultModel: 'o3-2025-04-16',
   },
+  {
+    name: 'Ollama',
+    baseUrl: 'http://localhost:11434/v1',
+    supportsToolCalling: true,
+    supportsJsonOutput: true,
+    website: 'https://ollama.com/',
+    placeholder: 'ollama',
+    defaultApiKey: 'ollama',
+  },
 ];
 
 type ViewMode = 'list' | 'add' | 'edit';
@@ -146,6 +155,10 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
         setBaseUrl(provider.baseUrl);
         setModel(provider.defaultModel || '');
         setUseToolCalling(provider.supportsToolCalling);
+        // Set default API key for providers that have one
+        if (provider.defaultApiKey) {
+          setApiKey(provider.defaultApiKey);
+        }
       }
     }
   };
@@ -156,7 +169,8 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
       return;
     }
 
-    if (!apiKey.trim()) {
+    // Skip API key validation for Ollama
+    if (selectedProvider !== 'Ollama' && !apiKey.trim()) {
       toast.error('Please enter an API key');
       return;
     }
@@ -186,6 +200,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     setIsLoading(true);
     try {
       const providerName = customProvider ? 'Custom' : selectedProvider;
+      const finalApiKey = selectedProvider === 'Ollama' ? 'ollama' : apiKey.trim();
       
       if (editingModel) {
         // Update existing model configuration
@@ -194,7 +209,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           name: modelName.trim(),
           provider: providerName,
           model: model.trim(),
-          apiKey: apiKey.trim(),
+          apiKey: finalApiKey,
           baseUrl: baseUrl.trim(),
           useToolCalling,
           sendScreenshots,
@@ -208,7 +223,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           name: modelName.trim(),
           provider: providerName,
           model: model.trim(),
-          apiKey: apiKey.trim(),
+          apiKey: finalApiKey,
           baseUrl: baseUrl.trim(),
           useToolCalling,
           sendScreenshots,
@@ -389,7 +404,15 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                 </div>
               ) : (
                 <div className={styles.modelList}>
-                  {modelConfigurations.map((config) => (
+                  {modelConfigurations
+                    .sort((a, b) => {
+                      // Put active model first
+                      if (a.id === activeModelId) return -1;
+                      if (b.id === activeModelId) return 1;
+                      // Keep original order for other models
+                      return 0;
+                    })
+                    .map((config) => (
                     <div
                       key={config.id}
                       className={`${styles.modelCard} ${
@@ -521,61 +544,63 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
             </div>
           )}
 
-          {/* API Key */}
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <Key size={16} />
-              <label className={styles.label}>API Key</label>
-            </div>
-            
-            <div className={styles.inputGroup}>
-              <div className={styles.inputWrapper}>
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => {
-                    setApiKey(e.target.value);
-                  }}
-                  placeholder={currentProvider?.placeholder || 'Enter your API key...'}
-                  className={styles.input}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className={styles.toggleButton}
-                  disabled={isLoading}
-                >
-                  {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+          {/* API Key - Hidden for Ollama */}
+          {selectedProvider !== 'Ollama' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <Key size={16} />
+                <label className={styles.label}>API Key</label>
               </div>
               
+              <div className={styles.inputGroup}>
+                <div className={styles.inputWrapper}>
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value);
+                    }}
+                    placeholder={currentProvider?.placeholder || 'Enter your API key...'}
+                    className={styles.input}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className={styles.toggleButton}
+                    disabled={isLoading}
+                  >
+                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                
 
-            </div>
+              </div>
 
-            <div className={styles.help}>
-              <p>
-                {currentProvider ? (
-                  <>
-                    Get your API key from{' '}
-                    <a 
-                      href={currentProvider.website} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className={styles.link}
-                    >
-                      {currentProvider.name}
-                    </a>
-                  </>
-                ) : (
-                  'Enter your custom provider API key'
-                )}
-              </p>
-              <p className={styles.note}>
-                Your API key is stored locally and never shared.
-              </p>
+              <div className={styles.help}>
+                <p>
+                  {currentProvider ? (
+                    <>
+                      Get your API key from{' '}
+                      <a 
+                        href={currentProvider.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className={styles.link}
+                      >
+                        {currentProvider.name}
+                      </a>
+                    </>
+                  ) : (
+                    'Enter your custom provider API key'
+                  )}
+                </p>
+                <p className={styles.note}>
+                  Your API key is stored locally and never shared.
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Model */}
           <div className={styles.section}>
@@ -706,7 +731,12 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
               <button
                 onClick={handleSave}
                 className={styles.saveButton}
-                disabled={!apiKey.trim() || !model.trim() || !modelName.trim() || isLoading}
+                disabled={
+                  !model.trim() || 
+                  !modelName.trim() || 
+                  (selectedProvider !== 'Ollama' && !apiKey.trim()) || 
+                  isLoading
+                }
               >
                 {isLoading ? 'Saving...' : editingModel ? 'Update' : 'Add Model'}
               </button>
