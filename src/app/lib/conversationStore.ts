@@ -15,6 +15,15 @@ interface ModelConfiguration {
   updatedAt: Date;
 }
 
+interface CodeVersion {
+  id: string;
+  conversationId: string;
+  code: string;
+  timestamp: Date;
+  description?: string;
+  isAutoSaved: boolean;
+}
+
 interface ConversationDB extends DBSchema {
   conversations: {
     key: string;
@@ -51,6 +60,11 @@ interface ConversationDB extends DBSchema {
     value: ModelConfiguration;
     indexes: { 'by-date': Date };
   };
+  codeVersions: {
+    key: string;
+    value: CodeVersion;
+    indexes: { 'by-conversation': string; 'by-date': Date };
+  };
 }
 
 class ConversationStore {
@@ -59,7 +73,7 @@ class ConversationStore {
   async init(): Promise<void> {
     if (this.db) return;
 
-    this.db = await openDB<ConversationDB>('c3d-conversations', 3, {
+    this.db = await openDB<ConversationDB>('c3d-conversations', 4, {
       upgrade(db, oldVersion) {
         // Create conversations store
         if (oldVersion < 1) {
@@ -87,6 +101,15 @@ class ConversationStore {
             keyPath: 'id',
           });
           modelConfigStore.createIndex('by-date', 'updatedAt');
+        }
+        
+        // Create code versions store
+        if (oldVersion < 4) {
+          const codeVersionsStore = db.createObjectStore('codeVersions', {
+            keyPath: 'id',
+          });
+          codeVersionsStore.createIndex('by-conversation', 'conversationId');
+          codeVersionsStore.createIndex('by-date', 'timestamp');
         }
       },
     });
@@ -413,7 +436,76 @@ class ConversationStore {
     await this.saveModelConfiguration(config);
     return config;
   }
+
+  // Code version management
+  async saveCodeVersion(version: CodeVersion): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.put('codeVersions', version);
+  }
+
+  async getCodeVersion(id: string): Promise<CodeVersion | undefined> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return await this.db.get('codeVersions', id);
+  }
+
+  async getCodeVersionsForConversation(conversationId: string): Promise<CodeVersion[]> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return await this.db.getAllFromIndex('codeVersions', 'by-conversation', conversationId);
+  }
+
+  async deleteCodeVersionsForConversation(conversationId: string): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const versions = await this.getCodeVersionsForConversation(conversationId);
+    for (const version of versions) {
+      await this.db.delete('codeVersions', version.id);
+    }
+  }
+
+  async createCodeVersion(data: {
+    conversationId: string;
+    code: string;
+    description?: string;
+    isAutoSaved?: boolean;
+  }): Promise<CodeVersion> {
+    const version: CodeVersion = {
+      id: Math.random().toString(36).substring(2, 9),
+      conversationId: data.conversationId,
+      code: data.code,
+      timestamp: new Date(),
+      description: data.description,
+      isAutoSaved: data.isAutoSaved || false,
+    };
+    
+    await this.saveCodeVersion(version);
+    return version;
+  }
+
+  async isVersioningEnabledForConversation(conversationId: string): Promise<boolean> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const settings = await this.db.get('settings', `versioning-${conversationId}`);
+    return settings?.collapsed ?? false; // Default to false (off)
+  }
+
+  async setVersioningForConversation(conversationId: string, enabled: boolean): Promise<void> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+    
+    await this.db.put('settings', { 
+      key: `versioning-${conversationId}`, 
+      collapsed: enabled 
+    });
+  }
 }
 
 export const conversationStore = new ConversationStore();
-export type { ModelConfiguration }; 
+export type { ModelConfiguration, CodeVersion }; 

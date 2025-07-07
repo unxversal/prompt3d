@@ -1,0 +1,199 @@
+/* Diff viewer container */
+.diffViewer {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: 'Monaco', 'Menlo', 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+
+/* Diff header */
+.diffHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #0f0f0f;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.diffLabels {
+  display: flex;
+  gap: 2rem;
+}
+
+.oldLabel {
+  color: #ff6b6b;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.newLabel {
+  color: #4ade80;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.diffStats {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.addedStat {
+  color: #4ade80;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.removedStat {
+  color: #ff6b6b;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Diff content */
+.diffContent {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.noDiff {
+  padding: 2rem;
+  text-align: center;
+  color: #888888;
+}
+
+.noDiff p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* Diff lines */
+.diffLines {
+  background: #000000;
+}
+
+.diffLine {
+  display: flex;
+  align-items: flex-start;
+  min-height: 1.5rem;
+  line-height: 1.5;
+  border-left: 3px solid transparent;
+}
+
+.diffLine.added {
+  background: rgba(74, 222, 128, 0.1);
+  border-left-color: #4ade80;
+}
+
+.diffLine.removed {
+  background: rgba(255, 107, 107, 0.1);
+  border-left-color: #ff6b6b;
+}
+
+.diffLine.unchanged {
+  background: transparent;
+}
+
+.diffLine:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.diffLine.added:hover {
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.diffLine.removed:hover {
+  background: rgba(255, 107, 107, 0.15);
+}
+
+/* Line components */
+.lineNumber {
+  display: inline-block;
+  width: 3rem;
+  padding: 0 0.5rem;
+  color: #666666;
+  font-size: 0.75rem;
+  text-align: right;
+  user-select: none;
+  flex-shrink: 0;
+  background: #0a0a0a;
+  border-right: 1px solid #1a1a1a;
+}
+
+.diffMarker {
+  display: inline-block;
+  width: 1.5rem;
+  padding: 0 0.25rem;
+  color: #888888;
+  font-weight: bold;
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.diffLine.added .diffMarker {
+  color: #4ade80;
+}
+
+.diffLine.removed .diffMarker {
+  color: #ff6b6b;
+}
+
+.lineContent {
+  flex: 1;
+  padding: 0 0.5rem;
+  color: #ffffff;
+  white-space: pre;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.diffLine.added .lineContent {
+  color: #ffffff;
+}
+
+.diffLine.removed .lineContent {
+  color: #ffffff;
+}
+
+.diffLine.unchanged .lineContent {
+  color: #cccccc;
+}
+
+/* Scrollbars */
+.diffContent::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.diffContent::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+.diffContent::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 4px;
+}
+
+.diffContent::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+.lineContent::-webkit-scrollbar {
+  height: 4px;
+}
+
+.lineContent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lineContent::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 2px;
+}
+
+.lineContent::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+} 

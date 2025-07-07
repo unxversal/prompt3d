@@ -15,6 +15,7 @@ import SettingsPopover from './components/SettingsPopover';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import ResizableSplitter from './components/ResizableSplitter';
 import DebugChatModal from './components/DebugChatModal';
+import VersionHistoryModal from './components/VersionHistoryModal';
 import { conversationStore } from './lib/conversationStore';
 import { Conversation } from './types/ai';
 
@@ -62,15 +63,20 @@ const meshedShapes = [
 ];`;
 
 // Component to handle code changes within Sandpack context
-function CodeEditor({ onCodeChange }: { onCodeChange: (code: string) => void }) {
+function CodeEditor({ onCodeChange, codeRef }: { 
+  onCodeChange: (code: string) => void;
+  codeRef: React.MutableRefObject<string>;
+}) {
   const { sandpack } = useSandpack();
   
   useEffect(() => {
     const file = sandpack.files['/index.ts'];
     if (file && file.code) {
+      // Update both the state and the ref
+      codeRef.current = file.code;
       onCodeChange(file.code);
     }
-  }, [sandpack.files, onCodeChange]);
+  }, [sandpack.files, onCodeChange, codeRef]);
 
   return (
     <SandpackCodeEditor 
@@ -101,7 +107,9 @@ export default function CADClientPage() {
   const [editorWidth, setEditorWidth] = useState(480);
   const [showDebugChat, setShowDebugChat] = useState(false);
   const [currentModelName, setCurrentModelName] = useState<string>('');
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const hasExecutedInitialCode = useRef(false);
+  const currentCodeRef = useRef<string>(DEFAULT_CODE);
 
   // Helper function to extract the most recent code from a conversation
   const extractCodeFromConversation = useCallback((conversation: Conversation): string | undefined => {
@@ -160,13 +168,16 @@ export default function CADClientPage() {
           if (foundCode) {
             console.log('📝 Found code from conversation, setting it:', foundCode.slice(0, 100) + '...');
             setCode(foundCode);
+            currentCodeRef.current = foundCode;
           } else {
             console.log('📝 No code found in conversation, using default');
             setCode(DEFAULT_CODE);
+            currentCodeRef.current = DEFAULT_CODE;
           }
         } else {
           console.log('📝 No conversations found, using default code');
           setCode(DEFAULT_CODE);
+          currentCodeRef.current = DEFAULT_CODE;
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -376,6 +387,37 @@ export default function CADClientPage() {
     }
   }, [isInitialized, executeCode, code]);
 
+  // Get the current code from the editor (ensures we have the latest version)
+  const getCurrentCode = () => {
+    return currentCodeRef.current;
+  };
+
+  // Run the current code from the editor
+  const handleRunCode = async () => {
+    const currentCode = getCurrentCode();
+    
+    // Save code version if versioning is enabled for this conversation
+    if (currentConversation) {
+      try {
+        const isVersioningEnabled = await conversationStore.isVersioningEnabledForConversation(currentConversation.id);
+        if (isVersioningEnabled) {
+          await conversationStore.createCodeVersion({
+            conversationId: currentConversation.id,
+            code: currentCode,
+            description: `Code run at ${new Date().toLocaleTimeString()}`,
+            isAutoSaved: true,
+          });
+          console.log('📦 Code version saved for conversation:', currentConversation.id);
+        }
+      } catch (error) {
+        console.error('Failed to save code version:', error);
+        // Don't prevent code execution if versioning fails
+      }
+    }
+    
+    executeCode(currentCode);
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -383,19 +425,20 @@ export default function CADClientPage() {
         event.preventDefault();
         // Execute code when Cmd+Enter is pressed
         if (isInitialized) {
-          executeCode(code);
+          handleRunCode();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isInitialized, executeCode, chatState, code]);
+  }, [isInitialized, handleRunCode]);
 
   const handleAgentCodeChange = async (newCode: string): Promise<void> => {
     // This function will be called by the ChatInterface when the agent
     // provides new code. It updates the state and then executes.
     setCode(newCode);
+    currentCodeRef.current = newCode;
     
     // We need to ensure the `executeCode` function runs with the `newCode`.
     // By passing it directly, we avoid issues with stale state.
@@ -521,6 +564,7 @@ export default function CADClientPage() {
 
       // Reset the code editor back to the default template
       setCode(DEFAULT_CODE);
+      currentCodeRef.current = DEFAULT_CODE;
 
       // Close chat history modal if open
       setShowChatHistory(false);
@@ -548,12 +592,14 @@ export default function CADClientPage() {
       console.log('📝 Loading code from conversation:', foundCode.slice(0, 100) + '...');
       // Load the code snapshot from history
       setCode(foundCode);
+      currentCodeRef.current = foundCode;
       // Execute the code to update the CAD viewer
       executeCode(foundCode);
     } else {
       console.log('📝 No code found in conversation, using default');
       // Conversation has no generated code yet – reset to default template
       setCode(DEFAULT_CODE);
+      currentCodeRef.current = DEFAULT_CODE;
       // Execute the default code to show something in the viewer
       executeCode(DEFAULT_CODE);
     }
@@ -574,6 +620,21 @@ export default function CADClientPage() {
 
   const handleDebugChat = () => {
     setShowDebugChat(true);
+  };
+
+  const handleVersionHistory = () => {
+    setShowVersionHistory(true);
+  };
+
+  const handleVersionLoad = (code: string) => {
+    setCode(code);
+    currentCodeRef.current = code;
+    executeCode(code);
+    setShowVersionHistory(false);
+  };
+
+  const handleVersioningToggle = (enabled: boolean) => {
+    console.log(`Version history ${enabled ? 'enabled' : 'disabled'} for conversation:`, currentConversation?.id);
   };
 
   return (
@@ -630,7 +691,7 @@ export default function CADClientPage() {
                     }}
                   >
                     <SandpackLayout>
-                      <CodeEditor onCodeChange={setCode} />
+                      <CodeEditor onCodeChange={setCode} codeRef={currentCodeRef} />
                     </SandpackLayout>
                   </SandpackProvider>
                 </div>
@@ -655,11 +716,12 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
-              onRunCode={() => executeCode(code)}
+              onRunCode={handleRunCode}
               onExportSTEP={handleExportSTEP}
               onOpenSettings={() => setShowSettings(true)}
               onNewChat={handleNewChat}
               onChatHistory={() => setShowChatHistory(true)}
+              onVersionHistory={handleVersionHistory}
               onToggleChat={toggleChat}
               onToggleCode={toggleCode}
               isExecuting={isExecuting}
@@ -677,11 +739,12 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
-              onRunCode={() => executeCode(code)}
+              onRunCode={handleRunCode}
               onExportSTEP={handleExportSTEP}
               onOpenSettings={() => setShowSettings(true)}
               onNewChat={handleNewChat}
               onChatHistory={() => setShowChatHistory(true)}
+              onVersionHistory={handleVersionHistory}
               onToggleChat={toggleChat}
               onToggleCode={toggleCode}
               isExecuting={isExecuting}
@@ -716,6 +779,16 @@ export default function CADClientPage() {
         onClose={() => setShowDebugChat(false)}
         apiKey={apiKey}
         model={model}
+      />
+
+      {/* Version History Modal */}
+      <VersionHistoryModal
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        conversationId={currentConversation?.id || null}
+        onLoadVersion={handleVersionLoad}
+        onToggleVersioning={handleVersioningToggle}
+        currentCode={getCurrentCode()}
       />
     </div>
   );

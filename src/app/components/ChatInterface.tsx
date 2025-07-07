@@ -16,7 +16,8 @@ import {
   Settings,
   Plus,
   History,
-  MessageCircle
+  MessageCircle,
+  GitCommit
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
@@ -43,6 +44,7 @@ interface ChatInterfaceProps {
   onOpenSettings?: () => void;
   onNewChat?: () => void;
   onChatHistory?: () => void;
+  onVersionHistory?: () => void;
   onToggleChat?: () => void;
   onToggleCode?: () => void;
   isExecuting?: boolean;
@@ -62,6 +64,7 @@ export default function ChatInterface({
   onOpenSettings,
   onNewChat,
   onChatHistory,
+  onVersionHistory,
   onToggleChat,
   onToggleCode,
   isExecuting,
@@ -773,6 +776,14 @@ export default function ChatInterface({
             <button
               type="button"
               className={styles.navButton}
+              onClick={onVersionHistory}
+              title="Version History"
+            >
+              <GitCommit size={16} />
+            </button>
+            <button
+              type="button"
+              className={styles.navButton}
               onClick={onToggleCode}
               title="Toggle Code"
             >
@@ -865,6 +876,15 @@ export default function ChatInterface({
               title=""
             >
               <History size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Version History">
+            <button
+              className={styles.iconButton}
+              onClick={onVersionHistory}
+              title=""
+            >
+              <GitCommit size={16} />
             </button>
           </Tooltip>
           <Tooltip content="Toggle Code">

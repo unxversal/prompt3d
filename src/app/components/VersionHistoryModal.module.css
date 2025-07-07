@@ -1,0 +1,379 @@
+/* Modal overlay */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+/* Modal content */
+.modalContent {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Modal header */
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.modalTitle {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: #888888;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.closeButton:hover {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+/* Versioning toggle */
+.versioningToggle {
+  padding: 1.5rem;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.toggleSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.toggleInfo h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.toggleInfo p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #888888;
+}
+
+.toggleButton {
+  background: transparent;
+  border: none;
+  color: #888888;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.toggleButton:hover {
+  background: #1a1a1a;
+}
+
+.toggleButton.enabled {
+  color: #4ade80;
+}
+
+/* Confirmation dialog */
+.confirmDialog {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
+}
+
+.confirmContent {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 8px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+}
+
+.confirmContent h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.confirmContent p {
+  margin: 0 0 1.5rem 0;
+  font-size: 0.875rem;
+  color: #888888;
+  line-height: 1.5;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.cancelButton {
+  background: transparent;
+  border: 1px solid #333333;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cancelButton:hover {
+  background: #1a1a1a;
+}
+
+.confirmButton {
+  background: #4ade80;
+  border: none;
+  color: #000000;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.confirmButton:hover {
+  background: #22c55e;
+}
+
+/* Version list */
+.versionList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* Loading state */
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #888888;
+}
+
+.spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid #333333;
+  border-top: 2px solid #4ade80;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #888888;
+  text-align: center;
+}
+
+.emptyState h3 {
+  margin: 1rem 0 0.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Version item */
+.versionItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.versionItem:hover {
+  background: #0f0f0f;
+  border-color: #333333;
+}
+
+.versionItem.selected {
+  background: #1a1a1a;
+  border-color: #4ade80;
+}
+
+.versionInfo {
+  flex: 1;
+}
+
+.versionActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.versionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.timestamp {
+  font-size: 0.875rem;
+  color: #888888;
+}
+
+.autoSavedBadge {
+  font-size: 0.75rem;
+  background: #333333;
+  color: #ffffff;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+}
+
+.description {
+  font-size: 0.875rem;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+}
+
+.codeSummary {
+  font-size: 0.75rem;
+  color: #666666;
+  font-family: 'Monaco', 'Menlo', monospace;
+  margin: 0;
+}
+
+.loadButton {
+  background: transparent;
+  border: 1px solid #333333;
+  color: #888888;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.loadButton:hover {
+  background: #1a1a1a;
+  color: #4ade80;
+  border-color: #4ade80;
+}
+
+.compareButton {
+  background: transparent;
+  border: 1px solid #333333;
+  color: #888888;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compareButton:hover {
+  background: #1a1a1a;
+  color: #fbbf24;
+  border-color: #fbbf24;
+}
+
+/* Modal footer */
+.modalFooter {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #1a1a1a;
+  background: #0a0a0a;
+}
+
+.footerText {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #888888;
+}
+
+/* Diff view */
+.diffView {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.diffViewHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #1a1a1a;
+  background: #0f0f0f;
+}
+
+.diffViewHeader h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.backButton {
+  background: transparent;
+  border: 1px solid #333333;
+  color: #888888;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 0.875rem;
+}
+
+.backButton:hover {
+  background: #1a1a1a;
+  color: #ffffff;
+  border-color: #555555;
+} 
