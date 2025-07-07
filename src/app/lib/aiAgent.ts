@@ -99,7 +99,11 @@ const meshedShapes = [
 ];
 \`\`\`
 
-You MUST always end your code with exporting the meshed shapes as the above does, or else your code will not work.
+You MUST always end your code with exporting the meshed shapes as the above does (yes, as const meshedShapes), or else your code will not work.
+Basically, your last line of code should always be:
+const meshedShapes = [
+ // meshed shapes here
+]
 
 ## Design Principles:
 
@@ -142,8 +146,35 @@ ${REPLICAD_DOCS}
       throw new Error('API key not set');
     }
 
-    // Get provider settings
-    const providerSettings = await conversationStore.getProviderSettings();
+    // Get provider settings from active model configuration first, fallback to legacy settings
+    let providerSettings: {
+      baseUrl: string;
+      useToolCalling: boolean;
+      sendScreenshots: boolean;
+    };
+    
+    try {
+      const activeModel = await conversationStore.getActiveModelConfiguration();
+      if (activeModel) {
+        providerSettings = {
+          baseUrl: activeModel.baseUrl,
+          useToolCalling: activeModel.useToolCalling,
+          sendScreenshots: activeModel.sendScreenshots,
+        };
+        console.log('🔧 Using provider settings from active model configuration:', providerSettings);
+      } else {
+        // Fallback to legacy provider settings
+        providerSettings = await conversationStore.getProviderSettings();
+        console.log('🔧 Using legacy provider settings (no active model found):', providerSettings);
+      }
+    } catch (error) {
+      console.error('Failed to load provider settings, using defaults:', error);
+      providerSettings = {
+        baseUrl: 'https://openrouter.ai/api/v1',
+        useToolCalling: true,
+        sendScreenshots: true,
+      };
+    }
 
     // Capture screenshots if enabled and we have the capability
     let screenshots: Screenshot[] = [];
@@ -291,6 +322,10 @@ Please implement this request directly using the available tools. Use write_code
                 max_tokens: 20000,
               }),
             });
+            
+            console.log(`🔧 Request mode: ${providerSettings.useToolCalling ? 'Tool Calling' : 'JSON Schema'}`);
+            console.log(`🔧 Sending tools: ${providerSettings.useToolCalling ? 'Yes' : 'No'}`);
+            console.log(`🔧 Sending response_format: ${!providerSettings.useToolCalling ? 'Yes' : 'No'}`);
 
             // Break loop if successful
             if (response.ok) {
@@ -378,6 +413,43 @@ Please implement this request directly using the available tools. Use write_code
         }
 
         // Parse structured JSON response (for non-tool-calling mode)
+        
+        // For non-tool-calling mode, try to parse JSON response
+        if (!providerSettings.useToolCalling && typeof message.content === 'string') {
+          try {
+            const jsonResponse = JSON.parse(message.content);
+            if (jsonResponse && jsonResponse.name && jsonResponse.arguments) {
+              console.log('📋 Parsed JSON response:', jsonResponse);
+              
+              // Convert JSON response to function call
+              const functionCall: FunctionCall = {
+                name: jsonResponse.name,
+                arguments: jsonResponse.arguments,
+              };
+              
+              console.log(`Calling function: ${functionCall.name}`, functionCall.arguments);
+              try {
+                const result = await onFunctionCall(functionCall);
+                functionCall.result = result;
+                console.log(`Function ${functionCall.name} completed:`, result);
+
+                if (functionCall.name === 'idle') {
+                  console.log('Task marked as complete, stopping processing');
+                  isComplete = true;
+                  continue;
+                }
+              } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                console.error(`Function ${functionCall.name} failed:`, errorMessage);
+              }
+              
+              // Continue to next iteration after processing JSON function call
+              continue;
+            }
+          } catch {
+            console.log('📋 Not a valid JSON response, treating as regular content');
+          }
+        }
 
         // Handle block-based content (text arrays from some providers)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

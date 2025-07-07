@@ -83,7 +83,8 @@ export async function POST(request: NextRequest) {
         tools,
         tool_choice,
       };
-      console.log('Making request with tools:', tools.length);
+      console.log('📤 Making request with tools:', tools.length);
+      console.log('🔧 Tool calling mode: ON');
       const completion = await openai.chat.completions.create(paramsWithTools);
       console.log('Completion:', completion);
       return NextResponse.json(completion);
@@ -92,12 +93,14 @@ export async function POST(request: NextRequest) {
         ...baseParams,
         response_format,
       };
-      console.log('Making request with JSON response format');
+      console.log('📤 Making request with JSON response format');
+      console.log('🔧 Tool calling mode: OFF, using JSON schema');
       const completion = await openai.chat.completions.create(paramsWithFormat);
       console.log('Completion:', completion);
       return NextResponse.json(completion);
     } else {
-      console.log('Making basic request without tools or response format');
+      console.log('📤 Making basic request without tools or response format');
+      console.log('🔧 Tool calling mode: OFF, no JSON schema provided');
       const completion = await openai.chat.completions.create(baseParams);
       return NextResponse.json(completion);
     }
