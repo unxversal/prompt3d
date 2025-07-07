@@ -409,8 +409,8 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                       // Put active model first
                       if (a.id === activeModelId) return -1;
                       if (b.id === activeModelId) return 1;
-                      // Keep original order for other models
-                      return 0;
+                      // Sort remaining models alphabetically by name
+                      return a.name.localeCompare(b.name);
                     })
                     .map((config) => (
                     <div

@@ -6,6 +6,11 @@ import { toast } from 'sonner';
 import { conversationStore } from '../lib/conversationStore';
 import styles from './DebugChatModal.module.css';
 
+interface TestJsonResponse {
+  message: string;
+  success: boolean;
+}
+
 interface DebugMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -95,6 +100,49 @@ const extractThinkingFromContent = (content: string): { thinking: string | null;
   const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
   
   return { thinking, cleanContent };
+};
+
+// Function to extract JSON from various formats (markdown code blocks, plain text, etc.)
+const extractJsonFromContent = (content: string): TestJsonResponse | null => {
+  // First try to parse as direct JSON
+  try {
+    return JSON.parse(content) as TestJsonResponse;
+  } catch {
+    // If that fails, try to extract JSON from markdown code blocks
+    const jsonBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/i);
+    if (jsonBlockMatch) {
+      try {
+        return JSON.parse(jsonBlockMatch[1].trim()) as TestJsonResponse;
+      } catch {
+        // Continue to next attempt
+      }
+    }
+    
+    // Try to find JSON object in the content using regex
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]) as TestJsonResponse;
+      } catch {
+        // Continue to next attempt
+      }
+    }
+    
+    // Last resort: try to extract anything that looks like JSON
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
+        try {
+          return JSON.parse(trimmedLine) as TestJsonResponse;
+        } catch {
+          // Continue to next line
+        }
+      }
+    }
+    
+    return null;
+  }
 };
 
 export default function DebugChatModal({ isOpen, onClose, apiKey, model }: DebugChatModalProps) {
@@ -213,7 +261,7 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
         baseUrl: providerSettings.baseUrl,
         useToolCalling: testMode === 'tool_calling' ? true : providerSettings.useToolCalling,
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 10000,
       };
 
       // Add tools if test tool calling is enabled
@@ -288,9 +336,7 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
             const message = args.message || 'Test function called successfully';
             
             if (success) {
-              toast.success(`Tool Call Success: ${message}`, {
-                description: 'The AI successfully used tool calling to respond',
-              });
+              toast.success(message);
             } else {
               toast.error(`Tool Call Failed: ${message}`, {
                 description: 'The AI indicated the test failed',
@@ -312,36 +358,49 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
       } else if (testMode === 'json' && processedContent) {
         // Handle JSON mode response - use processedContent instead of aiMessage.content
         try {
-          const jsonResponse = JSON.parse(processedContent);
-          const success = jsonResponse.success === true;
-          const message = jsonResponse.message || 'JSON response received';
+          const jsonResponse = extractJsonFromContent(processedContent);
           
-          if (success) {
-            toast.success(`${message}`, {
-              description: 'The AI successfully responded with structured JSON',
-            });
+          if (jsonResponse) {
+            const success = jsonResponse.success === true;
+            const message = jsonResponse.message || 'JSON response received';
+            
+            if (success) {
+              toast.success(message);
+            } else {
+              toast.error(`JSON Failed: ${message}`, {
+                description: 'The AI indicated the test failed',
+              });
+            }
+            
+            // Add a system message to chat indicating JSON was parsed
+            const systemMessage: DebugMessage = {
+              id: Math.random().toString(36).substring(2, 9),
+              role: 'assistant',
+              content: `[JSON Parsed] Response: ${JSON.stringify(jsonResponse)}`,
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, systemMessage]);
           } else {
-            toast.error(`JSON Failed: ${message}`, {
-              description: 'The AI indicated the test failed',
-            });
+            // If JSON extraction failed, show the raw response
+            toast.error('Failed to parse JSON response');
+            
+            const systemMessage: DebugMessage = {
+              id: Math.random().toString(36).substring(2, 9),
+              role: 'assistant',
+              content: `[Invalid JSON] Raw response: ${processedContent}`,
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, systemMessage]);
           }
-          
-          // Add a system message to chat indicating JSON was parsed
-          const systemMessage: DebugMessage = {
-            id: Math.random().toString(36).substring(2, 9),
-            role: 'assistant',
-            content: `[JSON Parsed] Response: ${JSON.stringify(jsonResponse)}`,
-            timestamp: new Date(),
-          };
-          setMessages(prev => [...prev, systemMessage]);
-        } catch {
+        } catch (error) {
+          console.error('JSON parsing error:', error);
           toast.error('Failed to parse JSON response');
           
           // Add the raw response as a system message
           const systemMessage: DebugMessage = {
             id: Math.random().toString(36).substring(2, 9),
             role: 'assistant',
-            content: `[Invalid JSON] Raw response: ${processedContent}`,
+            content: `[JSON Parse Error] Raw response: ${processedContent}`,
             timestamp: new Date(),
           };
           setMessages(prev => [...prev, systemMessage]);
