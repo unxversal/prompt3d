@@ -11,6 +11,7 @@ interface ModelConfiguration {
   useToolCalling: boolean;
   sendScreenshots: boolean;
   docsLevel: number; // Documentation level (1-8)
+  streaming: boolean; // Whether to use streaming responses (default false)
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -74,7 +75,7 @@ class ConversationStore {
   async init(): Promise<void> {
     if (this.db) return;
 
-    this.db = await openDB<ConversationDB>('c3d-conversations', 4, {
+    this.db = await openDB<ConversationDB>('c3d-conversations', 5, {
       upgrade(db, oldVersion) {
         // Create conversations store
         if (oldVersion < 1) {
@@ -111,6 +112,12 @@ class ConversationStore {
           });
           codeVersionsStore.createIndex('by-conversation', 'conversationId');
           codeVersionsStore.createIndex('by-date', 'timestamp');
+        }
+        
+        // Add streaming field to existing model configurations
+        if (oldVersion < 5) {
+          // Migration will be handled by the existing migration logic in loadSettings
+          console.log('Database upgraded to version 5: streaming field added');
         }
       },
     });
@@ -426,11 +433,13 @@ class ConversationStore {
     useToolCalling: boolean;
     sendScreenshots: boolean;
     docsLevel?: number; // Optional, defaults to 1
+    streaming?: boolean; // Optional, defaults to false
   }): Promise<ModelConfiguration> {
     const config: ModelConfiguration = {
       id: Math.random().toString(36).substring(2, 9),
       ...data,
       docsLevel: data.docsLevel || 1, // Default to level 1 docs
+      streaming: data.streaming || false, // Default to false
       isActive: false,
       createdAt: new Date(),
       updatedAt: new Date(),

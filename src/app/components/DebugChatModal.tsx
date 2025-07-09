@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, MessageCircle, Loader2 } from 'lucide-react';
+import { X, Send, MessageCircle, Loader2, Code, Edit3, Bell, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { conversationStore } from '../lib/conversationStore';
 import styles from './DebugChatModal.module.css';
@@ -150,6 +150,7 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [testMode, setTestMode] = useState<TestMode>('normal');
+  const [streamingEnabled, setStreamingEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -278,6 +279,11 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
         };
       }
 
+      // Add streaming support for non-tool-calling modes
+      if (streamingEnabled && testMode !== 'tool_calling') {
+        requestBody.stream = true;
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -291,7 +297,106 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
         throw new Error(errorData?.error || `API request failed: ${response.status}`);
       }
 
-      
+      // Handle streaming response
+      if (streamingEnabled && testMode !== 'tool_calling') {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (!reader) {
+          throw new Error('No response body for streaming');
+        }
+
+        let buffer = '';
+        let currentResponse = '';
+        
+        // Create initial assistant message for streaming
+        const streamingMessageId = Math.random().toString(36).substring(2, 9);
+        const streamingMessage: DebugMessage = {
+          id: streamingMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, streamingMessage]);
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Process complete lines
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              if (line.trim() === '') continue;
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') {
+                  break;
+                }
+                
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices?.[0]?.delta?.content || '';
+                  if (content) {
+                    currentResponse += content;
+                    
+                    // Update the streaming message in real-time
+                    setMessages(prev => prev.map(msg => 
+                      msg.id === streamingMessageId 
+                        ? { ...msg, content: currentResponse }
+                        : msg
+                    ));
+                  }
+                } catch (error) {
+                  console.warn('Failed to parse streaming response:', error);
+                }
+              }
+            }
+          }
+          
+          // Process final response for JSON mode
+          if (testMode === 'json' && currentResponse.trim()) {
+            try {
+              const jsonResponse = extractJsonFromContent(currentResponse);
+              
+              if (jsonResponse) {
+                const success = jsonResponse.success === true;
+                const message = jsonResponse.message || 'JSON response received';
+                
+                if (success) {
+                  toast.success(message);
+                } else {
+                  toast.error(`JSON Failed: ${message}`, {
+                    description: 'The AI indicated the test failed',
+                  });
+                }
+                
+                // Add a system message indicating JSON was parsed
+                const systemMessage: DebugMessage = {
+                  id: Math.random().toString(36).substring(2, 9),
+                  role: 'assistant',
+                  content: `[JSON Parsed] Response: ${JSON.stringify(jsonResponse)}`,
+                  timestamp: new Date(),
+                };
+                setMessages(prev => [...prev, systemMessage]);
+              }
+            } catch (error) {
+              console.error('JSON parsing error:', error);
+              toast.error('Failed to parse JSON response');
+            }
+          }
+          
+        } finally {
+          reader.releaseLock();
+        }
+        
+        return; // Exit early for streaming
+      }
 
       const data: ChatCompletionResponse = await response.json();
       console.log("data");
@@ -356,7 +461,7 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
           }
         }
       } else if (testMode === 'json' && processedContent) {
-        // Handle JSON mode response - use processedContent instead of aiMessage.content
+        // Handle JSON mode response for non-streaming - use processedContent instead of aiMessage.content
         try {
           const jsonResponse = extractJsonFromContent(processedContent);
           
@@ -474,6 +579,101 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
     }
   };
 
+  // Test toast functions for debugging
+  const testToasts = {
+    notify_user: () => {
+      const messages = [
+        'This is a test notification message from the debug panel',
+        'AI has analyzed your request and is ready to proceed',
+        'Remember to save your work before making major changes',
+        'Tip: Use descriptive variable names for better code readability'
+      ];
+      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+      const toastContent = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Bell size={16} style={{ color: '#6b7280' }} />
+          <span>{randomMessage}</span>
+        </div>
+      );
+      toast.info(toastContent, { duration: 4000 });
+    },
+    write_code: () => {
+      const toastContent = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Code size={16} style={{ color: '#3b82f6' }} />
+          <span>Code generated and executed successfully</span>
+        </div>
+      );
+      toast.info(toastContent, {
+        description: 'New CAD model has been created',
+        duration: 3000
+      });
+    },
+    edit_code: () => {
+      const toastContent = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Edit3 size={16} style={{ color: '#3b82f6' }} />
+          <span>Code edited and executed successfully</span>
+        </div>
+      );
+      toast.info(toastContent, {
+        description: 'Changes applied to existing model',
+        duration: 3000
+      });
+    },
+    idle: () => {
+      const completions = [
+        'Task completed successfully - All operations finished',
+        'CAD model generation complete - Ready for export',
+        'Code optimization finished - Performance improved',
+        'Design validation complete - No issues found'
+      ];
+      const randomCompletion = completions[Math.floor(Math.random() * completions.length)];
+      const toastContent = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <CheckCircle size={16} style={{ color: '#059669' }} />
+          <span>{randomCompletion}</span>
+        </div>
+      );
+      toast.success(toastContent, { duration: 4000 });
+    },
+    error: () => {
+      const errors = [
+        'Failed to parse geometry parameters',
+        'API connection timeout',
+        'Invalid code syntax detected',
+        'Memory allocation error'
+      ];
+      const randomError = errors[Math.floor(Math.random() * errors.length)];
+      const toastContent = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertTriangle size={16} style={{ color: '#ef4444' }} />
+          <span>{randomError}</span>
+        </div>
+      );
+      toast.error(toastContent, {
+        description: 'Function execution failed',
+        duration: 5000,
+      });
+    },
+    loading: () => {
+      const loadingMessages = [
+        'Processing test operation...',
+        'Generating 3D geometry...',
+        'Optimizing mesh topology...',
+        'Calculating surface normals...'
+      ];
+      const randomLoading = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+      const toastContent = (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Clock size={16} style={{ color: '#6b7280' }} />
+          <span>{randomLoading}</span>
+        </div>
+      );
+      toast.loading(toastContent);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -499,6 +699,22 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                 <option value="vision">Vision Testing</option>
               </select>
             </div>
+            
+            {/* Streaming toggle - only show for non-tool-calling modes */}
+            {testMode !== 'tool_calling' && (
+              <div className={styles.modeSelector}>
+                <label className={styles.modeLabel}>
+                  <input
+                    type="checkbox"
+                    checked={streamingEnabled}
+                    onChange={(e) => setStreamingEnabled(e.target.checked)}
+                    style={{ marginRight: '6px' }}
+                  />
+                  Streaming
+                </label>
+              </div>
+            )}
+            
             <button onClick={clearChat} className={styles.clearButton}>
               Clear
             </button>
@@ -518,13 +734,13 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                   {testMode === 'tool_calling' 
                     ? 'Tool calling mode: AI responses will appear as toasts'
                     : testMode === 'json'
-                    ? 'JSON mode: AI responses will appear as toasts'
+                    ? `JSON mode: AI responses will appear as toasts${streamingEnabled ? ' (streaming enabled)' : ''}`
                     : 'Vision mode: Screenshots included with each message'
                   }
                 </p>
               ) : (
                 <p className={styles.emptySubtext}>
-                  Messages are ephemeral and won&apos;t be saved
+                  Messages are ephemeral and won&apos;t be saved{streamingEnabled ? ' • Streaming enabled' : ''}
                 </p>
               )}
             </div>
@@ -573,11 +789,204 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
               {testMode === 'tool_calling' 
                 ? '🔧 Tool calling mode active' 
                 : testMode === 'json'
-                ? '📄 JSON schema mode active'
+                ? `📄 JSON schema mode active${streamingEnabled ? ' (streaming)' : ''}`
                 : '👁️ Vision testing mode active'
               }
             </div>
           )}
+          
+          {/* Show streaming indicator for normal mode */}
+          {testMode === 'normal' && streamingEnabled && (
+            <div className={styles.toolCallIndicator}>
+              📡 Streaming mode active
+            </div>
+          )}
+          
+          {/* Test Toast Buttons */}
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '4px', 
+            marginBottom: '8px',
+            padding: '8px',
+            background: 'var(--bg-tertiary)',
+            borderRadius: '6px',
+            border: '1px solid var(--border-color)'
+          }}>
+            <div style={{ 
+              width: '100%', 
+              fontSize: '11px', 
+              color: 'var(--text-secondary)', 
+              marginBottom: '4px',
+              fontWeight: '500',
+              textAlign: 'center'
+            }}>
+              🧪 Test Toasts (Click to preview toast notifications)
+            </div>
+            <button
+              type="button"
+              onClick={testToasts.notify_user}
+              title="Test notification toast"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+              }}
+            >
+              <Bell size={12} />
+              Notify
+            </button>
+            <button
+              type="button"
+              onClick={testToasts.write_code}
+              title="Test code generation toast"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+              }}
+            >
+              <Code size={12} />
+              Write
+            </button>
+            <button
+              type="button"
+              onClick={testToasts.edit_code}
+              title="Test code editing toast"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+              }}
+            >
+              <Edit3 size={12} />
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={testToasts.idle}
+              title="Test task completion toast"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+              }}
+            >
+              <CheckCircle size={12} />
+              Complete
+            </button>
+            <button
+              type="button"
+              onClick={testToasts.error}
+              title="Test error toast"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+              }}
+            >
+              <AlertTriangle size={12} />
+              Error
+            </button>
+            <button
+              type="button"
+              onClick={testToasts.loading}
+              title="Test loading toast"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '10px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+              }}
+            >
+              <Clock size={12} />
+              Loading
+            </button>
+          </div>
+          
           <div className={styles.inputRow}>
             <input
               ref={inputRef}
@@ -589,10 +998,10 @@ export default function DebugChatModal({ isOpen, onClose, apiKey, model }: Debug
                 testMode === 'tool_calling' 
                   ? "Test tool calling (response will appear as toast)..."
                   : testMode === 'json'
-                  ? "Test JSON schema (response will appear as toast)..."
+                  ? `Test JSON schema (response will appear as toast)${streamingEnabled ? ' with streaming...' : '...'}`
                   : testMode === 'vision'
                   ? "Ask about the 3D model (screenshot will be included)..."
-                  : "Type a message to test the AI endpoint..."
+                  : `Type a message to test the AI endpoint${streamingEnabled ? ' (streaming enabled)' : ''}...`
               }
               className={styles.input}
               disabled={isLoading}

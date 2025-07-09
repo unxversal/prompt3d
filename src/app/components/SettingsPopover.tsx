@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Eye, EyeOff, X, Key, Brain, Globe, Wrench, MessageSquare, Camera, Plus, Check, Trash2, ArrowLeft, BookOpen } from 'lucide-react';
+import { Settings, Eye, EyeOff, X, Key, Brain, Globe, Wrench, MessageSquare, Camera, Plus, Check, Trash2, ArrowLeft, BookOpen, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
 import { conversationStore, type ModelConfiguration } from '../lib/conversationStore';
@@ -79,6 +79,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
   const [docsLevel, setDocsLevel] = useState(1);
   const [selectedProvider, setSelectedProvider] = useState('OpenRouter');
   const [customProvider, setCustomProvider] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const { theme } = useTheme();
 
   const currentProvider = PRESET_PROVIDERS.find(p => p.name === selectedProvider);
@@ -87,7 +88,23 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     try {
       // Load all model configurations
       const configs = await conversationStore.getAllModelConfigurations();
-      setModelConfigurations(configs);
+      
+      // Migrate existing configurations to add streaming field if missing
+      const migratedConfigs = configs.map(config => ({
+        ...config,
+        streaming: config.streaming ?? false, // Add streaming field with default false
+      }));
+      
+      // Save migrated configurations if any were updated
+      const needsMigration = configs.some(config => config.streaming === undefined);
+      if (needsMigration) {
+        console.log('Migrating model configurations to add streaming field');
+        for (const config of migratedConfigs) {
+          await conversationStore.saveModelConfiguration(config);
+        }
+      }
+      
+      setModelConfigurations(migratedConfigs);
       
       // Get active model
       const activeConfig = await conversationStore.getActiveModelConfiguration();
@@ -123,6 +140,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           useToolCalling: providerSettings.useToolCalling,
           sendScreenshots: providerSettings.sendScreenshots,
           docsLevel: 1, // Default to level 1 for migrated configurations
+          streaming: false, // Default to false for migrated configurations
         });
         
         await conversationStore.setActiveModelConfiguration(config.id);
@@ -227,6 +245,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           useToolCalling,
           sendScreenshots,
           docsLevel,
+          streaming,
         };
         
         await conversationStore.saveModelConfiguration(updatedConfig);
@@ -242,6 +261,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           useToolCalling,
           sendScreenshots,
           docsLevel,
+          streaming,
         });
         
         // Automatically set as active if it's the first model
@@ -289,6 +309,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     setUseToolCalling(true);
     setSendScreenshots(true);
     setDocsLevel(1);
+    setStreaming(false);
     setSelectedProvider('OpenRouter');
     setCustomProvider(false);
     setEditingModel(null);
@@ -308,6 +329,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     setUseToolCalling(config.useToolCalling);
     setSendScreenshots(config.sendScreenshots);
     setDocsLevel(config.docsLevel || 1);
+    setStreaming(config.streaming || false);
     
     // Set provider
     const provider = PRESET_PROVIDERS.find(p => p.name === config.provider);
@@ -360,6 +382,43 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
       toast.success('Model configuration deleted');
     } catch {
       toast.error('Failed to delete model configuration');
+    }
+  };
+
+  const handleDuplicateModel = async (config: ModelConfiguration) => {
+    try {
+      // Create a new name by appending "(Copy)" to the original name
+      let newName = `${config.name} (Copy)`;
+      
+      // Check if a model with this name already exists, and add a number if needed
+      const existingNames = modelConfigurations.map(c => c.name);
+      let counter = 1;
+      const originalNewName = newName;
+      
+      while (existingNames.includes(newName)) {
+        counter++;
+        newName = `${originalNewName} ${counter}`;
+      }
+      
+      // Create the duplicated configuration
+      await conversationStore.createModelConfiguration({
+        name: newName,
+        provider: config.provider,
+        model: config.model,
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        useToolCalling: config.useToolCalling,
+        sendScreenshots: config.sendScreenshots,
+        docsLevel: config.docsLevel || 1,
+        streaming: config.streaming || false,
+      });
+      
+      // Reload configurations to show the new duplicate
+      await loadSettings();
+      
+      toast.success(`Duplicated as "${newName}"`);
+    } catch {
+      toast.error('Failed to duplicate model configuration');
     }
   };
 
@@ -466,6 +525,14 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                           disabled={isLoading}
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateModel(config)}
+                          className={styles.duplicateButton}
+                          disabled={isLoading}
+                          title="Duplicate this model configuration"
+                        >
+                          <Copy size={14} />
                         </button>
                         <button
                           onClick={() => handleDeleteModel(config.id)}
@@ -687,6 +754,47 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
               )}
             </div>
           </div>
+
+          {/* Streaming Mode - Only for JSON schema mode */}
+          {!useToolCalling && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <MessageSquare size={16} />
+                <label className={styles.label}>Response Streaming</label>
+              </div>
+              
+              <div className={styles.inputGroup}>
+                <div className={styles.toggleGroup}>
+                  <button
+                    onClick={() => setStreaming(false)}
+                    className={`${styles.toggleButton} ${!streaming ? styles.active : ''}`}
+                    disabled={isLoading}
+                  >
+                    Standard
+                  </button>
+                  <button
+                    onClick={() => setStreaming(true)}
+                    className={`${styles.toggleButton} ${streaming ? styles.active : ''}`}
+                    disabled={isLoading}
+                  >
+                    Streaming
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.help}>
+                <p className={styles.note}>
+                  {streaming 
+                    ? 'Streams responses in real-time for faster perceived performance' 
+                    : 'Waits for complete response before displaying (default)'
+                  }
+                </p>
+                <p className={styles.note}>
+                  Streaming is only available in JSON schema mode and works best with local models like Ollama.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Screenshot Settings */}
           <div className={styles.section}>

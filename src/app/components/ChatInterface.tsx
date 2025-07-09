@@ -38,6 +38,7 @@ interface ChatInterfaceProps {
   model: string;
   onApiKeyRequired: () => void;
   currentConversation?: Conversation | null; // Optional external conversation to load
+  onConversationUpdate?: (conversation: Conversation) => void; // Callback when conversation is updated
   // Props for minimal view navigation buttons
   onRunCode?: () => void;
   onExportSTEP?: () => void;
@@ -59,6 +60,7 @@ export default function ChatInterface({
   model,
   onApiKeyRequired,
   currentConversation: externalConversation,
+  onConversationUpdate,
   onRunCode,
   onExportSTEP,
   onOpenSettings,
@@ -162,6 +164,16 @@ export default function ChatInterface({
     e.preventDefault();
     if (!message.trim() || agentState.isProcessing) return;
 
+    // Debug: Log the submit information
+    console.log('🔍 handleSubmit Debug - Submit triggered:', {
+      message: message,
+      messageLength: message.trim().length,
+      currentCodeLength: currentCode?.length || 0,
+      agentState: agentState,
+      currentConversationId: currentConversation?.id,
+      conversationHistoryLength: currentConversation?.messages?.length || 0
+    });
+
     // Check if API key is set
     if (!apiKey || !agent) {
       onApiKeyRequired();
@@ -171,45 +183,63 @@ export default function ChatInterface({
       return;
     }
 
-    const userMessage: Message = {
-      id: generateId(),
-      role: 'user',
-      content: message.trim(),
-      timestamp: new Date(),
-    };
-
-    // Add user message to conversation
-    if (currentConversation) {
-      const updatedConversation = {
-        ...currentConversation,
-        messages: [...currentConversation.messages, userMessage],
-        updatedAt: new Date(),
-      };
-      setCurrentConversation(updatedConversation);
-      await conversationStore.saveConversation(updatedConversation);
-    }
-
-    setMessage('');
-    setAgentState(prev => ({ ...prev, isProcessing: true }));
-
-    // Create abort controller for cancellation
-    const controller = new AbortController();
-    setAbortController(controller);
-
     try {
+      const userMessage: Message = {
+        id: generateId(),
+        role: 'user',
+        content: message.trim(),
+        timestamp: new Date(),
+      };
+
+      // Debug: Log the user message
+      console.log('🔍 handleSubmit Debug - User message created:', userMessage);
+
+      // Add user message to conversation
+      if (currentConversation) {
+        const updatedConversation = {
+          ...currentConversation,
+          messages: [...currentConversation.messages, userMessage],
+          updatedAt: new Date(),
+        };
+        setCurrentConversation(updatedConversation);
+        await conversationStore.saveConversation(updatedConversation);
+        
+        // Notify parent component about the conversation update
+        if (onConversationUpdate) {
+          onConversationUpdate(updatedConversation);
+        }
+      }
+
+      setMessage('');
+      setAgentState(prev => ({ ...prev, isProcessing: true }));
+
+      // Create abort controller for cancellation
+      const controller = new AbortController();
+      setAbortController(controller);
+
+      // Debug: Log the context being passed to the AI
+      const aiContext = {
+        userPrompt: userMessage.content,
+        currentCode,
+        screenshots: [], // Screenshots are captured internally now
+        conversationHistory: currentConversation?.messages.slice(-10) || [] // Last 10 messages for context
+      };
+      
+      console.log('🔍 handleSubmit Debug - AI Context:', {
+        userPrompt: aiContext.userPrompt,
+        userPromptLength: aiContext.userPrompt?.length || 0,
+        currentCodeLength: aiContext.currentCode?.length || 0,
+        conversationHistoryLength: aiContext.conversationHistory?.length || 0
+      });
+
       // Process the user message with the AI agent
       await agent.processUserMessage(
-        {
-          userPrompt: userMessage.content,
-          currentCode,
-          screenshots: [], // Screenshots are captured internally now
-          conversationHistory: currentConversation?.messages.slice(-10) || [] // Last 10 messages for context
-        },
+        aiContext,
         handleFunctionCall,
         controller.signal
       );
     } catch (error) {
-      if (controller.signal.aborted) {
+      if (abortController?.signal.aborted) {
         console.log('🛑 AI processing cancelled by user');
         await addMessageToConversation({
           id: generateId(),
@@ -300,24 +330,8 @@ export default function ChatInterface({
       type?: 'info' | 'warning' | 'error' | 'success';
     };
 
-    if (agentState.isCollapsed) {
-      // Generate short message for toast in collapsed mode
-      const shortMessage = msg.length > 60 ? msg.substring(0, 57) + '...' : msg;
-      
-      switch (type) {
-        case 'success':
-          toast.success(shortMessage, { description: 'C3D Assistant' });
-          break;
-        case 'warning':
-          toast.warning(shortMessage, { description: 'C3D Assistant' });
-          break;
-        case 'error':
-          toast.error(shortMessage, { description: 'C3D Assistant' });
-          break;
-        default:
-          toast.info(shortMessage, { description: 'C3D Assistant' });
-      }
-    }
+    // Show styled toast in minimal mode
+    showFunctionToast(call, 'completed');
 
     // Always add to conversation for full mode
     await addMessageToConversation({
@@ -344,6 +358,9 @@ export default function ChatInterface({
       
       const successMessage = 'New code has been written and executed successfully.';
       
+      // Show styled toast in minimal mode
+      showFunctionToast(call, 'completed');
+      
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
@@ -358,6 +375,10 @@ export default function ChatInterface({
       return successMessage;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during execution';
+      
+      // Show error toast in minimal mode
+      showFunctionToast(call, 'error');
+      
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
@@ -386,6 +407,9 @@ export default function ChatInterface({
 
       const successMessage = 'Code has been edited and executed successfully.';
       
+      // Show styled toast in minimal mode
+      showFunctionToast(call, 'completed');
+      
       // Include the resulting code in the function call arguments so that
       // conversation history contains a snapshot of the full code.
       const enrichedCall: FunctionCall = {
@@ -410,6 +434,10 @@ export default function ChatInterface({
       return successMessage;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during execution or diff application';
+      
+      // Show error toast in minimal mode
+      showFunctionToast(call, 'error');
+      
       await addMessageToConversation({
         id: generateId(),
         role: 'assistant',
@@ -427,21 +455,35 @@ export default function ChatInterface({
 
   const handleIdle = async (call: FunctionCall): Promise<string> => {
     console.log('💤 handleIdle called:', call);
+    
+    // Debug: Log the arguments received
+    console.log('🔍 handleIdle Debug - Arguments received:', {
+      arguments: call.arguments,
+      argumentsType: typeof call.arguments,
+      argumentsKeys: Object.keys(call.arguments || {}),
+      argumentsJSON: JSON.stringify(call.arguments, null, 2)
+    });
+    
     const { summary, message: msg } = call.arguments as {
       summary: string;
       message: string;
     };
 
+    // Debug: Log the extracted values
+    console.log('🔍 handleIdle Debug - Extracted values:', {
+      summary: summary,
+      summaryType: typeof summary,
+      summaryLength: summary?.length || 0,
+      message: msg,
+      messageType: typeof msg,
+      messageLength: msg?.length || 0
+    });
+
     // Clear current function
     setAgentState(prev => ({ ...prev, currentFunction: undefined }));
 
-    // Notification for collapsed mode
-    if (agentState.isCollapsed) {
-      toast.success('Task completed', {
-        description: summary,
-        icon: <CheckCircle size={16} />
-      });
-    }
+    // Show styled toast in minimal mode
+    showFunctionToast(call, 'completed');
 
     // Add completion message to conversation
     await addMessageToConversation({
@@ -470,15 +512,167 @@ export default function ChatInterface({
         updatedAt: new Date(),
       };
 
-      // Persist asynchronously (not awaiting inside setState)
+      // Persist to database
       conversationStore.saveConversation(updated);
+      
+      // Notify parent component about the conversation update
+      if (onConversationUpdate) {
+        onConversationUpdate(updated);
+      }
 
       return updated;
     });
   };
 
+  // Refresh conversation when switching between views
+  useEffect(() => {
+    const refreshConversation = async () => {
+      if (currentConversation?.id) {
+        try {
+          const latestConversation = await conversationStore.getConversation(currentConversation.id);
+          if (latestConversation && latestConversation.messages.length !== currentConversation.messages.length) {
+            console.log('🔄 Refreshing conversation state with latest messages');
+            setCurrentConversation(latestConversation);
+          }
+        } catch (error) {
+          console.warn('Failed to refresh conversation:', error);
+        }
+      }
+    };
+
+    // Only refresh when switching to panel mode (sidebar view)
+    if (state === 'panel') {
+      refreshConversation();
+    }
+  }, [state, currentConversation?.id]);
+
+  // Force refresh conversation when external conversation changes
+  useEffect(() => {
+    if (externalConversation && currentConversation?.id === externalConversation.id) {
+      if (externalConversation.messages.length !== currentConversation.messages.length) {
+        console.log('🔄 Force refreshing conversation from external prop');
+        setCurrentConversation(externalConversation);
+      }
+    }
+  }, [externalConversation, currentConversation?.id, currentConversation?.messages.length]);
+
+  // Additional synchronization when external conversation changes completely
+  useEffect(() => {
+    if (externalConversation && (!currentConversation || currentConversation.id !== externalConversation.id)) {
+      console.log('🔄 Setting new external conversation:', externalConversation.id);
+      setCurrentConversation(externalConversation);
+    }
+  }, [externalConversation?.id, currentConversation?.id]);
+
+  // Debug: Track conversation state changes
+  useEffect(() => {
+    if (currentConversation) {
+      console.log('💬 Current conversation state:', {
+        id: currentConversation.id,
+        messageCount: currentConversation.messages.length,
+        lastMessage: currentConversation.messages[currentConversation.messages.length - 1]?.content.slice(0, 50) + '...',
+        state: state
+      });
+    }
+  }, [currentConversation?.messages.length, state]);
+
   const generateId = (): string => {
     return Math.random().toString(36).substr(2, 9);
+  };
+
+  // Helper function to show styled toasts for function calls in minimal mode
+  const showFunctionToast = (functionCall: FunctionCall, status: 'pending' | 'completed' | 'error' = 'completed') => {
+    if (!agentState.isCollapsed) return; // Only show in collapsed/minimal mode
+
+    // Helper to safely convert unknown to string
+    const safeString = (value: unknown): string => {
+      if (typeof value === 'string') return value;
+      if (value == null) return '';
+      return String(value);
+    };
+
+    const getFunctionConfig = (name: string) => {
+      switch (name) {
+        case 'write_code':
+          return {
+            icon: <Code size={16} />,
+            title: 'Code Generated',
+            color: '#3b82f6',
+          };
+        case 'edit_code':
+          return {
+            icon: <Edit3 size={16} />,
+            title: 'Code Edited', 
+            color: '#3b82f6',
+          };
+        case 'notify_user':
+          return {
+            icon: <Bell size={16} />,
+            title: 'Notification',
+            color: '#6b7280',
+          };
+        case 'idle':
+          return {
+            icon: <CheckCircle size={16} />,
+            title: 'Task Completed',
+            color: '#059669',
+          };
+        default:
+          return {
+            icon: <Zap size={16} />,
+            title: 'Function Call',
+            color: '#6b7280',
+          };
+      }
+    };
+
+    const config = getFunctionConfig(functionCall.name);
+    const args = functionCall.arguments || {};
+
+    // Create custom toast content with React icons
+    const createToastContent = (icon: React.ReactElement, message: string) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ color: config.color }}>{icon}</span>
+        <span>{message}</span>
+      </div>
+    );
+
+    // Generate appropriate message content
+    let messageContent = config.title;
+    
+    if (functionCall.name === 'notify_user' && args.message) {
+      messageContent = safeString(args.message);
+    } else if (functionCall.name === 'idle') {
+      const summary = args.summary ? safeString(args.summary) : 'Task completed';
+      const message = args.message ? safeString(args.message) : '';
+      messageContent = `${summary}${message ? ` - ${message}` : ''}`;
+    } else if (functionCall.name === 'write_code') {
+      messageContent = 'Code generated and executed successfully';
+    } else if (functionCall.name === 'edit_code') {
+      messageContent = 'Code edited and executed successfully';
+    }
+
+    const toastContent = createToastContent(config.icon, messageContent);
+
+    // Show appropriate toast based on status
+    if (status === 'error') {
+      toast.error(toastContent, {
+        description: 'Function execution failed',
+        duration: 5000,
+      });
+    } else if (status === 'completed') {
+      if (functionCall.name === 'idle') {
+        toast.success(toastContent, {
+          duration: 4000,
+        });
+      } else {
+        toast.info(toastContent, {
+          duration: 3000,
+        });
+      }
+    } else {
+      toast.loading(toastContent);
+    }
   };
 
   const FunctionCallDisplay: React.FC<{ 

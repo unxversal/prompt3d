@@ -622,6 +622,12 @@ export default function CADClientPage() {
     }
   };
 
+  const handleConversationUpdate = (updatedConversation: Conversation) => {
+    // Update the parent's conversation state when the child notifies us of changes
+    console.log('🔄 Conversation updated from ChatInterface:', updatedConversation.id);
+    setCurrentConversation(updatedConversation);
+  };
+
   const handleDebugChat = () => {
     setShowDebugChat(true);
   };
@@ -741,6 +747,7 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
+              onConversationUpdate={handleConversationUpdate}
               onRunCode={handleRunCode}
               onExportSTEP={handleExportSTEP}
               onOpenSettings={() => setShowSettings(true)}
@@ -764,6 +771,7 @@ export default function CADClientPage() {
               model={model}
               onApiKeyRequired={handleApiKeyRequired}
               currentConversation={currentConversation}
+              onConversationUpdate={handleConversationUpdate}
               onRunCode={handleRunCode}
               onExportSTEP={handleExportSTEP}
               onOpenSettings={() => setShowSettings(true)}

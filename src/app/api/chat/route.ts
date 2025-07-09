@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
       tools,
       tool_choice = 'auto',
       response_format,
+      stream = false,
       temperature = 0.9,
       max_tokens = 8000,
       baseUrl = 'https://openrouter.ai/api/v1',
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
     console.log('Received tools', tools?.length || 0, 'tools');
     console.log('Received tool_choice', tool_choice);
     console.log('Received response_format', response_format);
+    console.log('Received stream', stream);
 
     // Validate required fields
     if (!apiKey) {
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
       messages,
       temperature,
       max_tokens,
+      stream,
     };
 
     // Add tools or response_format based on useToolCalling preference
@@ -87,22 +90,111 @@ export async function POST(request: NextRequest) {
       console.log('🔧 Tool calling mode: ON');
       const completion = await openai.chat.completions.create(paramsWithTools);
       console.log('Completion:', completion);
+      
+      // Handle streaming response
+      if (stream) {
+        // For tool calling mode, streaming is not supported in this implementation
+        console.warn('⚠️  Streaming not supported in tool calling mode');
+        return NextResponse.json(completion);
+      }
+      
       return NextResponse.json(completion);
-    } else if (!useToolCalling && response_format) {
+    } else if (response_format) {
       const paramsWithFormat = {
         ...baseParams,
         response_format,
       };
       console.log('📤 Making request with JSON response format');
       console.log('🔧 Tool calling mode: OFF, using JSON schema');
-      const completion = await openai.chat.completions.create(paramsWithFormat);
-      console.log('Completion:', completion);
-      return NextResponse.json(completion);
+      console.log('🔧 Streaming enabled:', stream);
+      
+      // Handle streaming vs non-streaming differently
+      if (stream) {
+        console.log('📡 Creating streaming request...');
+        const streamingCompletion = await openai.chat.completions.create(paramsWithFormat);
+        
+        // Create a ReadableStream from the OpenAI streaming response
+        const encoder = new TextEncoder();
+        const readable = new ReadableStream({
+          async start(controller) {
+            try {
+              // The completion is already an AsyncIterable when stream=true
+              for await (const chunk of streamingCompletion as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
+                const content = chunk.choices[0]?.delta?.content || '';
+                if (content) {
+                  // Send in SSE format
+                  const data = `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
+                  controller.enqueue(encoder.encode(data));
+                }
+              }
+              
+              // Send final message
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+            } catch (error) {
+              console.error('Streaming error:', error);
+              controller.error(error);
+            }
+          },
+        });
+        
+        return new Response(readable, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      } else {
+        const completion = await openai.chat.completions.create(paramsWithFormat);
+        console.log('Completion received:', completion);
+        return NextResponse.json(completion);
+      }
     } else {
       console.log('📤 Making basic request without tools or response format');
       console.log('🔧 Tool calling mode: OFF, no JSON schema provided');
-      const completion = await openai.chat.completions.create(baseParams);
-      return NextResponse.json(completion);
+      
+      // Handle streaming vs non-streaming differently
+      if (stream) {
+        console.log('📡 Creating streaming request...');
+        const streamingCompletion = await openai.chat.completions.create(baseParams);
+        
+        // Create a ReadableStream from the OpenAI streaming response
+        const encoder = new TextEncoder();
+        const readable = new ReadableStream({
+          async start(controller) {
+            try {
+              // The completion is already an AsyncIterable when stream=true
+              for await (const chunk of streamingCompletion as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
+                const content = chunk.choices[0]?.delta?.content || '';
+                if (content) {
+                  // Send in SSE format
+                  const data = `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
+                  controller.enqueue(encoder.encode(data));
+                }
+              }
+              
+              // Send final message
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+            } catch (error) {
+              console.error('Streaming error:', error);
+              controller.error(error);
+            }
+          },
+        });
+        
+        return new Response(readable, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      } else {
+        const completion = await openai.chat.completions.create(baseParams);
+        return NextResponse.json(completion);
+      }
     }
 
   } catch (error) {

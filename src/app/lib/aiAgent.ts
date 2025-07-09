@@ -10,6 +10,7 @@ import {
 } from './replicadDocs';
 import { AI_FUNCTIONS, AIContext, FunctionCall, Screenshot } from '../types/ai';
 import { conversationStore } from './conversationStore';
+import { REPLICAD_COMPLETE_API_LIST } from './replicadDocsLibrary';
 
 // Helper function to get documentation by level
 function getDocumentationByLevel(level: number): string {
@@ -88,6 +89,8 @@ Transform user ideas into precise, well-commented 3D model code using Replicad.
 - **notify_user**: Send markdown messages to keep the user informed
 - **idle**: Mark the task as complete when finished
 
+**CRITICAL: When calling the idle function, you MUST always provide both "summary" and "message" parameters with meaningful, non-empty string values. Never leave these undefined or empty.**
+
 ## Code Requirements:
 
 Replicad's entire API is automatically available—**do not use static \`import\` or \`export\`.**
@@ -148,6 +151,9 @@ const meshedShapes = [
 ## Replicad Documentation Reference:
 ${documentation}
 
+## Make sure you don't hallucinate any functions. Here is the Replicad API List:
+${REPLICAD_COMPLETE_API_LIST}
+
 ## Approach:
 1. **Understand** the user's request
 2. **Implement** using write_code or edit_code with comprehensive comments
@@ -159,7 +165,89 @@ ${documentation}
 - Use extensive code comments for education rather than long explanations
 - Focus on direct implementation rather than verbose descriptions
 - Ensure you thoroughly read and understand the documentation before you start coding. It is imperative your code runs without errors.
-- Remember: Your code comments are your main teaching tool`;
+- Remember: Your code comments are your main teaching tool
+- **CRITICAL: When calling idle, ALWAYS provide both "summary" and "message" parameters with meaningful content. NEVER use empty objects or undefined values.**`;
+  }
+
+  private async handleStreamingResponse(
+    response: Response,
+    onFunctionCall: (call: FunctionCall) => Promise<unknown>,
+    abortSignal?: AbortSignal
+  ): Promise<void> {
+    if (!response.body) {
+      throw new Error('No response body for streaming');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentResponse = '';
+
+    try {
+      while (true) {
+        if (abortSignal?.aborted) {
+          throw new Error('Request aborted');
+        }
+
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              break;
+            }
+            
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              currentResponse += content;
+            } catch (error) {
+              console.warn('Failed to parse streaming response:', error);
+            }
+          }
+        }
+      }
+
+      // Process the complete response
+      if (currentResponse.trim()) {
+        try {
+          const jsonResponse = JSON.parse(currentResponse);
+          if (jsonResponse && jsonResponse.name && jsonResponse.arguments) {
+            console.log('🔍 Streaming - Parsed JSON response:', jsonResponse);
+            
+            const functionCall: FunctionCall = {
+              name: jsonResponse.name,
+              arguments: jsonResponse.arguments,
+            };
+            
+            console.log(`Streaming - Calling function: ${functionCall.name}`, functionCall.arguments);
+            const result = await onFunctionCall(functionCall);
+            console.log(`Streaming - Function ${functionCall.name} completed:`, result);
+          }
+        } catch (error) {
+          console.warn('Failed to parse complete streaming response as JSON:', error);
+          // If it's not JSON, treat as a regular message
+          await onFunctionCall({
+            name: 'notify_user',
+            arguments: {
+              message: currentResponse,
+              type: 'info',
+            },
+          });
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async processUserMessage(
@@ -171,11 +259,20 @@ ${documentation}
       throw new Error('API key not set');
     }
 
+    // Debug: Log the context being passed
+    console.log('🔍 AI Agent Debug - Context received:', {
+      userPrompt: context.userPrompt,
+      userPromptLength: context.userPrompt?.length || 0,
+      currentCodeLength: context.currentCode?.length || 0,
+      conversationHistoryLength: context.conversationHistory?.length || 0
+    });
+
     // Get provider settings from active model configuration first, fallback to legacy settings
     let providerSettings: {
       baseUrl: string;
       useToolCalling: boolean;
       sendScreenshots: boolean;
+      streaming: boolean;
     };
     
     try {
@@ -185,11 +282,18 @@ ${documentation}
           baseUrl: activeModel.baseUrl,
           useToolCalling: activeModel.useToolCalling,
           sendScreenshots: activeModel.sendScreenshots,
+          streaming: activeModel.streaming,
         };
         console.log('🔧 Using provider settings from active model configuration:', providerSettings);
       } else {
         // Fallback to legacy provider settings
-        providerSettings = await conversationStore.getProviderSettings();
+        const legacySettings = await conversationStore.getProviderSettings();
+        providerSettings = {
+          baseUrl: legacySettings.baseUrl,
+          useToolCalling: legacySettings.useToolCalling,
+          sendScreenshots: legacySettings.sendScreenshots,
+          streaming: false, // Default to false for legacy settings
+        };
         console.log('🔧 Using legacy provider settings (no active model found):', providerSettings);
       }
     } catch (error) {
@@ -198,7 +302,27 @@ ${documentation}
         baseUrl: 'https://openrouter.ai/api/v1',
         useToolCalling: true,
         sendScreenshots: true,
+        streaming: false,
       };
+    }
+
+    // Streaming is only allowed for JSON schema mode, not tool calling
+    if (providerSettings.streaming && providerSettings.useToolCalling) {
+      console.warn('⚠️  Streaming is only supported in JSON schema mode, disabling streaming');
+      providerSettings.streaming = false;
+    }
+
+    // Early return if no user prompt
+    if (!context.userPrompt || context.userPrompt.trim().length === 0) {
+      console.warn('⚠️  No user prompt provided, calling idle');
+      await onFunctionCall({
+        name: 'idle',
+        arguments: {
+          summary: 'No action required',
+          message: 'No user request was provided.'
+        }
+      });
+      return;
     }
 
     // Capture screenshots if enabled and we have the capability
@@ -275,6 +399,13 @@ Please implement this request directly using the available tools. Use write_code
         }
       });
     }
+
+    // Debug: Log the final user message content
+    console.log('🔍 AI Agent Debug - Final user message content:', {
+      textContent: userMessageContent[0].text?.substring(0, 200) + '...',
+      imageCount: userMessageContent.length - 1,
+      fullTextLength: userMessageContent[0].text?.length || 0
+    });
 
     // Get documentation level from active model configuration
     let docsLevel = 1; // Default to level 1
@@ -354,6 +485,7 @@ Please implement this request directly using the available tools. Use write_code
                   type: 'json_schema',
                   json_schema: responseSchema,
                 } : undefined,
+                stream: providerSettings.streaming && !providerSettings.useToolCalling,
                 temperature: 1,
                 max_tokens: 20000,
               }),
@@ -362,6 +494,7 @@ Please implement this request directly using the available tools. Use write_code
             console.log(`🔧 Request mode: ${providerSettings.useToolCalling ? 'Tool Calling' : 'JSON Schema'}`);
             console.log(`🔧 Sending tools: ${providerSettings.useToolCalling ? 'Yes' : 'No'}`);
             console.log(`🔧 Sending response_format: ${!providerSettings.useToolCalling ? 'Yes' : 'No'}`);
+            console.log(`🔧 Streaming enabled: ${providerSettings.streaming && !providerSettings.useToolCalling ? 'Yes' : 'No'}`);
 
             // Break loop if successful
             if (response.ok) {
@@ -389,6 +522,13 @@ Please implement this request directly using the available tools. Use write_code
           // If after retries we still have no successful response
           const errorMessage = lastErrorMessage || 'API request failed';
           throw new Error(errorMessage);
+        }
+
+        // Handle streaming response if enabled
+        if (providerSettings.streaming && !providerSettings.useToolCalling) {
+          await this.handleStreamingResponse(response, onFunctionCall, abortSignal);
+          isComplete = true;
+          continue;
         }
 
         const data: ChatCompletionResponse = await response.json();
@@ -454,8 +594,18 @@ Please implement this request directly using the available tools. Use write_code
         if (!providerSettings.useToolCalling && typeof message.content === 'string') {
           try {
             const jsonResponse = JSON.parse(message.content);
+            console.log('🔍 AI Agent Debug - Parsed JSON response:', jsonResponse);
+            
             if (jsonResponse && jsonResponse.name && jsonResponse.arguments) {
               console.log('📋 Parsed JSON response:', jsonResponse);
+              
+              // Debug the arguments being passed
+              console.log('🔍 AI Agent Debug - Function arguments:', {
+                functionName: jsonResponse.name,
+                arguments: jsonResponse.arguments,
+                argumentsKeys: Object.keys(jsonResponse.arguments || {}),
+                argumentsLength: JSON.stringify(jsonResponse.arguments || {}).length
+              });
               
               // Convert JSON response to function call
               const functionCall: FunctionCall = {

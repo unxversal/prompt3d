@@ -980,7 +980,8 @@
 }
 
 .selectButton,
-.editButton {
+.editButton,
+.duplicateButton {
   padding: 6px 12px;
   border: 1px solid;
   border-radius: 0;
@@ -998,25 +999,37 @@
   background: transparent;
 }
 
+.duplicateButton {
+  background: transparent;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .dark .selectButton,
-.dark .editButton {
+.dark .editButton,
+.dark .duplicateButton {
   border-color: #333333;
   color: #ffffff;
 }
 
 .light .selectButton,
-.light .editButton {
+.light .editButton,
+.light .duplicateButton {
   border-color: #333333;
   color: #000000;
 }
 
 .dark .selectButton:hover:not(:disabled),
-.dark .editButton:hover:not(:disabled) {
+.dark .editButton:hover:not(:disabled),
+.dark .duplicateButton:hover:not(:disabled) {
   background: #333333;
 }
 
 .light .selectButton:hover:not(:disabled),
-.light .editButton:hover:not(:disabled) {
+.light .editButton:hover:not(:disabled),
+.light .duplicateButton:hover:not(:disabled) {
   background: #f0f0f0;
 }
 
