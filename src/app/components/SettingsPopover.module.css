@@ -652,6 +652,78 @@
   cursor: not-allowed;
 }
 
+/* Documentation Level Group */
+.docsLevelGroup {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.docsLevelGroup::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
+.docsLevelButton {
+  flex-shrink: 0;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid;
+  border-radius: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark .docsLevelButton {
+  border-color: #333333;
+  color: #a1a1aa;
+}
+
+.light .docsLevelButton {
+  border-color: #333333;
+  color: #6b7280;
+}
+
+.dark .docsLevelButton:hover:not(:disabled) {
+  background: #333333;
+  color: #ffffff;
+}
+
+.light .docsLevelButton:hover:not(:disabled) {
+  background: #f0f0f0;
+  color: #000000;
+}
+
+.docsLevelButton.active {
+  font-weight: 600;
+}
+
+.dark .docsLevelButton.active {
+  background: #333333;
+  color: #ffffff;
+  border-color: #666666;
+}
+
+.light .docsLevelButton.active {
+  background: #f0f0f0;
+  color: #000000;
+  border-color: #666666;
+}
+
+.docsLevelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Input Labels */
 .inputLabel {
   display: block;

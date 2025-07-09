@@ -59,6 +59,12 @@
   justify-content: center;
 }
 
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .titleContainer {
   display: flex;
   align-items: center;
@@ -86,6 +92,11 @@
   margin: 0;
   color: #888888;
   letter-spacing: 0.3px;
+  transition: color 0.15s ease;
+}
+
+.modelName:hover {
+  color: #ffffff;
 }
 
 .subtitle {

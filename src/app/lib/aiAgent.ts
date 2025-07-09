@@ -1,6 +1,30 @@
-import { REPLICAD_DOCS } from './replicadDocs';
+import { 
+  REPLICAD_LEVEL_1_DOCS, 
+  REPLICAD_LEVEL_2_DOCS, 
+  REPLICAD_LEVEL_3_DOCS, 
+  REPLICAD_LEVEL_4_DOCS, 
+  REPLICAD_LEVEL_5_DOCS, 
+  REPLICAD_LEVEL_6_DOCS, 
+  REPLICAD_LEVEL_7_DOCS, 
+  REPLICAD_LEVEL_8_DOCS 
+} from './replicadDocs';
 import { AI_FUNCTIONS, AIContext, FunctionCall, Screenshot } from '../types/ai';
 import { conversationStore } from './conversationStore';
+
+// Helper function to get documentation by level
+function getDocumentationByLevel(level: number): string {
+  switch (level) {
+    case 1: return REPLICAD_LEVEL_1_DOCS;
+    case 2: return REPLICAD_LEVEL_2_DOCS;
+    case 3: return REPLICAD_LEVEL_3_DOCS;
+    case 4: return REPLICAD_LEVEL_4_DOCS;
+    case 5: return REPLICAD_LEVEL_5_DOCS;
+    case 6: return REPLICAD_LEVEL_6_DOCS;
+    case 7: return REPLICAD_LEVEL_7_DOCS;
+    case 8: return REPLICAD_LEVEL_8_DOCS;
+    default: return REPLICAD_LEVEL_1_DOCS; // Default to level 1
+  }
+}
 
 // Define types for our API responses
 interface ChatCompletionResponse {
@@ -47,7 +71,8 @@ export class AIAgent {
     return this.model;
   }
 
-  private createSystemPrompt(): string {
+  private createSystemPrompt(docsLevel: number = 1): string {
+    const documentation = getDocumentationByLevel(docsLevel);
     return `# C3D - Your AI CAD Assistant
 
 You are C3D, an intelligent AI assistant that helps users create 3D models using a powerful parametric JavaScript CAD library (internally called Replicad, // ⚙️ Replicad functions are auto-injected – no import needed!). **Never mention "Replicad" to the user; whenever you need to refer to the underlying library, call it the "C3D package".** You work directly and efficiently with minimal overhead.
@@ -121,7 +146,7 @@ const meshedShapes = [
 - Complete tasks efficiently with idle when done
 
 ## Replicad Documentation Reference:
-${REPLICAD_DOCS}
+${documentation}
 
 ## Approach:
 1. **Understand** the user's request
@@ -251,10 +276,21 @@ Please implement this request directly using the available tools. Use write_code
       });
     }
 
+    // Get documentation level from active model configuration
+    let docsLevel = 1; // Default to level 1
+    try {
+      const activeModel = await conversationStore.getActiveModelConfiguration();
+      if (activeModel && activeModel.docsLevel) {
+        docsLevel = activeModel.docsLevel;
+      }
+    } catch (error) {
+      console.warn('Failed to get documentation level from active model, using default level 1:', error);
+    }
+
     const messages: ChatMessage[] = [
       {
         role: 'system',
-        content: this.createSystemPrompt(),
+        content: this.createSystemPrompt(docsLevel),
       },
       ...conversationMessages,
       {

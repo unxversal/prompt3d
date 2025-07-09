@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Eye, EyeOff, X, Key, Brain, Globe, Wrench, MessageSquare, Camera, Plus, Check, Trash2, ArrowLeft } from 'lucide-react';
+import { Settings, Eye, EyeOff, X, Key, Brain, Globe, Wrench, MessageSquare, Camera, Plus, Check, Trash2, ArrowLeft, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/useTheme';
 import { conversationStore, type ModelConfiguration } from '../lib/conversationStore';
@@ -15,6 +15,7 @@ interface SettingsPopoverProps {
     useToolCalling: boolean;
     sendScreenshots: boolean;
   }) => void;
+  editModelId?: string; // Optional prop to directly edit a specific model
 }
 
 const PRESET_PROVIDERS = [
@@ -57,7 +58,7 @@ const PRESET_PROVIDERS = [
 
 type ViewMode = 'list' | 'add' | 'edit';
 
-export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onModelChange, onProviderSettingsChange }: SettingsPopoverProps) {
+export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onModelChange, onProviderSettingsChange, editModelId }: SettingsPopoverProps) {
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingModel, setEditingModel] = useState<ModelConfiguration | null>(null);
@@ -75,6 +76,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
   const [baseUrl, setBaseUrl] = useState('https://openrouter.ai/api/v1');
   const [useToolCalling, setUseToolCalling] = useState(true);
   const [sendScreenshots, setSendScreenshots] = useState(true);
+  const [docsLevel, setDocsLevel] = useState(1);
   const [selectedProvider, setSelectedProvider] = useState('OpenRouter');
   const [customProvider, setCustomProvider] = useState(false);
   const { theme } = useTheme();
@@ -120,6 +122,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           baseUrl: providerSettings.baseUrl,
           useToolCalling: providerSettings.useToolCalling,
           sendScreenshots: providerSettings.sendScreenshots,
+          docsLevel: 1, // Default to level 1 for migrated configurations
         });
         
         await conversationStore.setActiveModelConfiguration(config.id);
@@ -141,6 +144,16 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
       loadSettings();
     }
   }, [isOpen, loadSettings]);
+
+  // Handle direct editing when editModelId is provided
+  useEffect(() => {
+    if (isOpen && editModelId && modelConfigurations.length > 0) {
+      const modelToEdit = modelConfigurations.find(config => config.id === editModelId);
+      if (modelToEdit) {
+        handleEditModel(modelToEdit);
+      }
+    }
+  }, [isOpen, editModelId, modelConfigurations]);
 
     const handleProviderChange = (providerName: string) => {
     setSelectedProvider(providerName);
@@ -213,6 +226,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           baseUrl: baseUrl.trim(),
           useToolCalling,
           sendScreenshots,
+          docsLevel,
         };
         
         await conversationStore.saveModelConfiguration(updatedConfig);
@@ -227,6 +241,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
           baseUrl: baseUrl.trim(),
           useToolCalling,
           sendScreenshots,
+          docsLevel,
         });
         
         // Automatically set as active if it's the first model
@@ -273,6 +288,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     setBaseUrl('https://openrouter.ai/api/v1');
     setUseToolCalling(true);
     setSendScreenshots(true);
+    setDocsLevel(1);
     setSelectedProvider('OpenRouter');
     setCustomProvider(false);
     setEditingModel(null);
@@ -291,6 +307,7 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
     setBaseUrl(config.baseUrl);
     setUseToolCalling(config.useToolCalling);
     setSendScreenshots(config.sendScreenshots);
+    setDocsLevel(config.docsLevel || 1);
     
     // Set provider
     const provider = PRESET_PROVIDERS.find(p => p.name === config.provider);
@@ -703,6 +720,45 @@ export default function SettingsPopover({ isOpen, onClose, onApiKeyChange, onMod
                   ? 'Sends 3D viewport screenshots to the AI for better visual understanding' 
                   : 'Disables screenshot capture for faster processing and debugging'
                 }
+              </p>
+            </div>
+          </div>
+
+          {/* Documentation Level */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <BookOpen size={16} />
+              <label className={styles.label}>Documentation Level</label>
+            </div>
+            
+            <div className={styles.inputGroup}>
+              <div className={styles.docsLevelGroup}>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setDocsLevel(level)}
+                    className={`${styles.docsLevelButton} ${docsLevel === level ? styles.active : ''}`}
+                    disabled={isLoading}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.help}>
+              <p className={styles.note}>
+                {docsLevel === 1 && 'Basic functions - Essential CAD operations and shapes'}
+                {docsLevel === 2 && 'Basic functions + Examples - Core functions with usage examples'}
+                {docsLevel === 3 && 'Basic functions + Wiki - Core functions with detailed explanations'}
+                {docsLevel === 4 && 'Basic functions + Wiki + Examples - Comprehensive core documentation'}
+                {docsLevel === 5 && 'Level 4 + Additional Examples Part 1 - Extended example library'}
+                {docsLevel === 6 && 'Level 5 + Additional Examples Part 2 - More complex examples'}
+                {docsLevel === 7 && 'Level 6 + Additional Examples Part 3 - Advanced use cases'}
+                {docsLevel === 8 && 'Complete documentation - All available functions and examples'}
+              </p>
+              <p className={styles.note}>
+                Higher levels provide more comprehensive documentation but may slow down AI responses.
               </p>
             </div>
           </div>

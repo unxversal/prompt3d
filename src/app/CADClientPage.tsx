@@ -108,6 +108,8 @@ export default function CADClientPage() {
   const [showDebugChat, setShowDebugChat] = useState(false);
   const [currentModelName, setCurrentModelName] = useState<string>('');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [activeModelId, setActiveModelId] = useState<string | null>(null);
+  const [editModelId, setEditModelId] = useState<string | null>(null);
   const hasExecutedInitialCode = useRef(false);
   const currentCodeRef = useRef<string>(DEFAULT_CODE);
 
@@ -255,9 +257,11 @@ export default function CADClientPage() {
         // Load current model name from active configuration
         if (activeConfig) {
           setCurrentModelName(activeConfig.name);
+          setActiveModelId(activeConfig.id);
         } else {
           // Fallback to just the model string if no configuration exists
           setCurrentModelName(savedModel || 'google/gemini-2.0-flash-exp:free');
+          setActiveModelId(null);
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -637,21 +641,42 @@ export default function CADClientPage() {
     console.log(`Version history ${enabled ? 'enabled' : 'disabled'} for conversation:`, currentConversation?.id);
   };
 
+  const handleModelNameClick = () => {
+    if (activeModelId) {
+      setEditModelId(activeModelId);
+      setShowSettings(true);
+    }
+  };
+
+  const handleSettingsClose = () => {
+    setShowSettings(false);
+    setEditModelId(null);
+  };
+
   return (
     <div className={styles.pageContainer}>
       <header className={styles.header}>
-        <a 
-          href="https://cxmpute.cloud" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className={styles.titleContainer}
-        >
-          <Image src="/6.png" alt="C3D Logo" className={styles.logo} width={10} height={10} />
-          <h1 className={styles.title}>C3D CAD</h1>
+        <div className={styles.headerContent}>
+          <a 
+            href="https://cxmpute.cloud" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={styles.titleContainer}
+          >
+            <Image src="/6.png" alt="C3D Logo" className={styles.logo} width={10} height={10} />
+            <h1 className={styles.title}>C3D CAD</h1>
+          </a>
           {currentModelName && (
-            <span className={styles.modelName}>• {currentModelName}</span>
+            <span 
+              className={styles.modelName}
+              onClick={handleModelNameClick}
+              style={{ cursor: activeModelId ? 'pointer' : 'default' }}
+              title={activeModelId ? 'Click to edit model settings' : undefined}
+            >
+              • {currentModelName}
+            </span>
           )}
-        </a>
+        </div>
         <p className={styles.subtitle}>An agentic, code-first CAD editor.</p>
       </header>
 
@@ -757,10 +782,11 @@ export default function CADClientPage() {
       {/* Settings Popover */}
       <SettingsPopover
         isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
+        onClose={handleSettingsClose}
         onApiKeyChange={handleApiKeyChange}
         onModelChange={handleModelChange}
         onProviderSettingsChange={handleProviderSettingsChange}
+        editModelId={editModelId || undefined}
       />
 
       {/* Chat History Modal */}

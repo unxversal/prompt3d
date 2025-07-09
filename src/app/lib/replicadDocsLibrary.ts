@@ -1,4 +1,4 @@
-const REPLICAD_DOCS_BASE_FUNCTIONS = `
+export const REPLICAD_DOCS_BASE_FUNCTIONS = `
 ### Drawing
 
 Let's start in two dimensions only, we will add the third one soon enough. replicad provides some classes and functions to draw in the plane.
@@ -462,7 +462,7 @@ const main = () => {
 \`\`\`
 `;
 
-const REPLICAD_DOCS_WIKI = `
+export const REPLICAD_DOCS_WIKI = `
 ## 1.1 Purpose
 
 This document contains a beginner's guide for users of the Replicad (https://replicad.xyz/) libary and tools. Its purpose is mainly to demonstrate how models can be build using the tools, the so-called "studio", that are offered alongside the library. If you want to use this document to generate a separate manual, use one of the tools available to generate a simple document out of a github wiki repository.
@@ -861,7 +861,7 @@ async function main()
 \`\`\`
 `;
 
-const REPLICAD_EXAMPLES = [
+export const REPLICAD_EXAMPLES = [
 `
 // A simple vase
 // This is a simple vase that shows off the smoothSpline API.
@@ -1372,7 +1372,7 @@ const main = () => {
 `
 ];
 
-const REPLICAD_DOCS_REMAINING_EXAMPLES_PART_1 = [
+export const REPLICAD_DOCS_REMAINING_EXAMPLES_PART_1 = [
 `
 // Recipe: Polar array
 // Sometimes you want to copy a shape with a circular pattern. This is fairly easy to do with a little bit of javascript.
@@ -2000,7 +2000,7 @@ const main = () => {
 `
 ];
 
-const REPLICAD_DOCS_REMAINING_EXAMPLES_PART_2 = [
+export const REPLICAD_DOCS_REMAINING_EXAMPLES_PART_2 = [
 `
 // Example: A shopping cart coin
 // Many shopping carts in Switzerland require a 2CHF coin to unlock.
@@ -2266,7 +2266,7 @@ export default function main({ width, height, depth, bottomThickness, wallThickn
 `
 ];
 
-const REPLICAD_DOCS_REMAINING_EXAMPLES_PART_3 = [
+export const REPLICAD_DOCS_REMAINING_EXAMPLES_PART_3 = [
 `
 // Example: Hinged flatbox
 // This is a set of experiments to make boxes to store tokens for a board game.
@@ -2533,7 +2533,7 @@ const main = () => {
 `
 ];
 
-const REPLICAD_DOCS_MISCELLANEOUS_CONTENT = [
+export const REPLICAD_DOCS_MISCELLANEOUS_CONTENT = [
 `
 // Section: Sharing models
 // This short section describes how to share models directly via the workbench.

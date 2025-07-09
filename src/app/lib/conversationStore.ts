@@ -10,6 +10,7 @@ interface ModelConfiguration {
   baseUrl: string;
   useToolCalling: boolean;
   sendScreenshots: boolean;
+  docsLevel: number; // Documentation level (1-8)
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -424,10 +425,12 @@ class ConversationStore {
     baseUrl: string;
     useToolCalling: boolean;
     sendScreenshots: boolean;
+    docsLevel?: number; // Optional, defaults to 1
   }): Promise<ModelConfiguration> {
     const config: ModelConfiguration = {
       id: Math.random().toString(36).substring(2, 9),
       ...data,
+      docsLevel: data.docsLevel || 1, // Default to level 1 docs
       isActive: false,
       createdAt: new Date(),
       updatedAt: new Date(),
