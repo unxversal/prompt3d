@@ -2532,3 +2532,195 @@ const main = () => {
 }
 `
 ];
+
+const REPLICAD_DOCS_MISCELLANEOUS_CONTENT = [
+`
+// Section: Sharing models
+// This short section describes how to share models directly via the workbench.
+// Direct links
+// You can even open a model directly in the workbench if you click on the Open in workbench button next to the copy button!
+
+// Working with local files
+// If you prefer to use your editor of choice it is also possible.
+// Create a file (model1.js for instance) somewhere on your disk, and then you can point the workbench to that file using the reload menu (left of the menu bar of the editor).
+// Unfortunately, in order to have all the file reloading abilities you will need to use Chrome (or Edge). The load from disk button does not appear in Firefox and Safari.
+`,
+`
+// Section: Making a watering can (Full Tutorial)
+// This is the full step-by-step tutorial for creating the watering can, as presented on replicad.xyz.
+// Drawing the body profile
+const { draw } = replicad;
+const main_step1 = () => {
+  return draw()
+    .hLine(20)
+    .line(10, 5)
+    .vLine(3)
+    .lineTo([8, 100])
+    .hLine(-8)
+    .close();
+};
+
+// Filleting angles
+const main_step2 = () => {
+  return draw()
+    .hLine(20)
+    .customCorner(2)
+    .line(10, 5)
+    .customCorner(3)
+    .vLine(3)
+    .customCorner(3)
+    .lineTo([8, 100])
+    .hLine(-8)
+    .close();
+};
+
+// Using Bézier curves
+const main_step3 = () => {
+  return draw([0, 100])
+    .hLine(8)
+    .lineTo([30, 8])
+    .smoothSpline(-10, -8, { endTangent: [-1, 0], startFactor: 2 })
+    .lineTo([0, 0])
+    .close();
+};
+
+// Using planes for the filler
+const main_step4 = () => {
+  const { drawCircle, makePlane } = replicad;
+  const topPlane = makePlane().pivot(-20, "Y").translate([-35, 0, 135]);
+  const topCircle = drawCircle(12).sketchOnPlane(topPlane);
+  const middleCircle = drawCircle(8).sketchOnPlane("XY", 100);
+  const bottomPlane = makePlane().pivot(20, "Y").translateZ(80);
+  const bottomCircle = drawCircle(9).sketchOnPlane(bottomPlane);
+  return [
+    { shape: topCircle, name: "Top Circle" },
+    { shape: middleCircle, name: "Middle Circle" },
+    { shape: bottomCircle, name: "Bottom Circle" },
+  ];
+};
+
+// Creating the 3D shapes
+const main_step5 = () => {
+  const { makePlane, makeCylinder, draw, drawCircle } = replicad;
+  const profile = draw().hLine(20).line(10, 5).vLine(3).lineTo([8, 100]).hLine(-8).close();
+  const body = profile.sketchOnPlane("XZ").revolve([0, 0, 1]);
+  const topPlane = makePlane().pivot(-20, "Y").translate([-35, 0, 135]);
+  const topCircle = drawCircle(12).sketchOnPlane(topPlane);
+  const middleCircle = drawCircle(8).sketchOnPlane("XY", 100);
+  const bottomPlane = makePlane().pivot(20, "Y").translateZ(80);
+  const bottomCircle = drawCircle(9).sketchOnPlane(bottomPlane);
+  const filler = topCircle.loftWith([middleCircle, bottomCircle], { ruled: false });
+  const spout = makeCylinder(5, 70).translateZ(100).rotate(45, [0, 0, 100], [0, 1, 0]);
+  return [
+    { shape: body, color: "blue", opacity: 0.5 },
+    { shape: filler, color: "red", opacity: 0.5 },
+    { shape: spout, color: "green" },
+  ];
+};
+
+// Combining the shapes and creating the hollow shape
+const main_final = () => {
+  const { makePlane, makeCylinder, draw, drawCircle } = replicad;
+  const profile = draw().hLine(20).line(10, 5).vLine(3).lineTo([8, 100]).hLine(-8).close();
+  const body = profile.sketchOnPlane("XZ").revolve([0, 0, 1]);
+  const topPlane = makePlane().pivot(-20, "Y").translate([-35, 0, 135]);
+  const topCircle = drawCircle(12).sketchOnPlane(topPlane);
+  const middleCircle = drawCircle(8).sketchOnPlane("XY", 100);
+  const bottomPlane = makePlane().pivot(20, "Y").translateZ(80);
+  const bottomCircle = drawCircle(9).sketchOnPlane(bottomPlane);
+  const filler = topCircle.loftWith([middleCircle, bottomCircle], { ruled: false });
+  const spout = makeCylinder(5, 70).translateZ(100).rotate(45, [0, 0, 100], [0, 1, 0]);
+  let wateringCan = body.fuse(filler).fillet(30, (e) => e.inPlane("XY", 100)).fuse(spout).fillet(10, (e) => e.inBox([20, 20, 100], [-20, -20, 120]));
+  const spoutOpening = [ Math.cos((45 * Math.PI) / 180) * 70, 0, 100 + Math.sin((45 * Math.PI) / 180) * 70 ];
+  wateringCan = wateringCan.shell(-1, (face) => face.either([ (f) => f.containsPoint(spoutOpening), (f) => f.inPlane(topPlane) ]));
+  return { shape: wateringCan, name: "Watering Can" };
+};
+`,
+`
+// Section: Replicad as a library
+// At its core, replicad is just a library. You can then create your own viewer, editor, configurator on top of it.
+// In order to show what can be done in the most simple way, you can find a sample app here: https://sample-app.replicad.xyz.
+
+// Display of the model
+// With replicad you can easily export an STL (or STEP) file to be opened in another application. Nevertheless displaying a model in your page tends to be nicer.
+// For this you will need to use a 3D library. For instance, replicad has helpers to integrate with threejs.
+
+// opencascade.js and webassembly
+// Most of the complexity in using replicad as a library is that it depends on a webassembly module, opencascadejs, and the tooling around WASM is not always easy to use.
+// Additionally, you should load the webassembly code from opencascadejs in a webworker. The model computation can take some time and the parallelism of a worker will allow you to offer a reactive interface during the computation.
+
+// Injecting opencascadejs
+// The important bit you need to do to have replicad work is that you need to inject an instance of opencascadejs at initialisation.
+// You can have a look at the initialisation in the sample app:
+let loaded = false;
+const init = async () => {
+  if (loaded) return Promise.resolve(true);
+
+  // This is a placeholder for the actual opencascade.js library
+  const opencascade = (config) => Promise.resolve({/* mock OC object */});
+  const opencascadeWasm = "path/to/wasm";
+
+  const OC = await opencascade({
+    locateFile: () => opencascadeWasm,
+  });
+
+  loaded = true;
+  // This is the crucial part
+  setOC(OC);
+
+  return true;
+};
+// const started = init();
+// Once this is done, replicad will work.
+`,
+`
+// Section: Replicad API List
+/*
+Drawing: DrawingPen, drawRectangle, draw, drawCircle, drawEllipse, drawFaceOutline, drawParametricFunction, drawPointsInterpolation, drawPolysides, drawProjection, drawRoundedRectangle, drawSingleCircle, drawSingleEllipse, drawText
+Import: importSTEP, importSTL
+Finders: EdgeFinder, FaceFinder, combineFinderFilters
+Solids: makeBox, makeCylinder, makeEllipsoid, makeSolid, makeSphere
+Measure: measureArea, measureDistanceBetween, measureLength, measureVolume
+Other Classes & Types: _1DShape, _3DShape, AssemblyExporter, BaseSketcher2d, Blueprint, Blueprints, BoundingBox, BoundingBox2d, Compound, CompoundBlueprint, CompoundSketch, CompSolid, CornerFinder, Curve, Curve2D, DistanceQuery, DistanceTool, Drawing, Edge, Face, LinearPhysicalProperties, Plane, ProjectionCamera, Shape, Shell, Sketches, Solid, Surface, SurfacePhysicalProperties, Transformation, Vector, Vertex, VolumePhysicalProperties, Wire, WrappingObj, BSplineApproximationConfig, CurveLike, DrawingInterface, ExtrusionProfile, FaceTriangulation, GenericSweepConfig, LoftConfig, ShapeMesh, SketchInterface, AnyShape, ChamferRadius, Corner, CubeFace, CurveType, FilletRadius, FilterFcn, PlaneName, Point, Point2D, ProjectionPlane, RadiusConfig, ScaleMode, Shape2D, Shape3D, SimplePoint, SplineConfig, SupportedUnit, SurfaceType
+Functions & Constants: DEG2RAD, HASH_CODE_MAX, makeCompound, RAD2DEG, addHolesInFace, asDir, asPnt, assembleWire, axis2d, basicFaceExtrusion, cast, complexExtrude, compoundShapes, createAssembly, createNamedPlane, cut2D, cutBlueprints, downcast, exportSTEP, fuse2D, fuseBlueprints, GCWithObject, GCWithScope, genericSweep, getFont, getOC, intersect2D, intersectBlueprints, isPoint, isProjectionPlane, isShape3D, isWire, iterTopo, loadFont, localGC, loft, lookFromPlane, makeAx1, makeAx2, makeAx3, makeBaseBox, makeBezierCurve, makeBSplineApproximation, makeCircle, makeDirection, makeEllipse, makeEllipseArc, makeFace, makeHelix, makeLine, makeNewFaceWithinFace, makeNonPlanarFace, makeOffset, makePlane, makePlaneFromFace, makePolygon, makeProjectedEdges, makeTangentArc, makeThreePointArc, makeVertex, measureShapeLinearProperties, measureShapeSurfaceProperties, measureShapeVolumeProperties, mirror, organiseBlueprints, polysideInnerRadius, polysidesBlueprint, revolution, rotate, roundedRectangleBlueprint, scale, setOC, shapeType, sketchText, supportExtrude, textBlueprints, translate, twistExtrude, weldShellsAndFaces
+Sketching: BlueprintSketcher, FaceSketcher, Sketch, Sketcher, GenericSketcher, sketchCircle, sketchEllipse, sketchFaceOffset, sketchHelix, sketchParametricFunction, sketchPolysides, sketchRectangle, sketchRoundedRectangle
+*/
+`,
+`
+// Section: replicad-threejs-helper
+// A set of simple function to help integrate replicad in a threejs project
+
+// API
+// This package offers a small set of functions to sync a set of BufferGeometry with meshed shapes from replicad.
+
+// Creating geometries from a replicad object
+// Typically you will create an array of replicad shapes that way (this is purely replicad code):
+/*
+const meshed = shapes.map((shape, i) => ({
+  name: \`shape \${i + 1}\`,
+  faces: shape.mesh({ tolerance: 0.05, angularTolerance: 30 }),
+  edges: shape.meshEdges({ keepMesh: true }),
+}));
+*/
+// You can then synchronise them with a set of buffer geometries (for the faces and the edges):
+// const geometries = syncGeometries(meshed, []);
+// The geometries will contain an array of objects with two BufferGeometry, one for the faces (the body of the solid) and one for the lines (the edges).
+
+// Updating geometries
+// If you have changes to your geometries, instead of creating new ones you can do:
+// const updatedGeometries = syncGeometries(meshed, geometries);
+
+// More control
+// Instead of updating both the edges and the faces you can use the simpler individual functions:
+// const facesGeometry = new BufferGeometry();
+// const updatedFaces = syncFaces(facesGeometry, replicadMeshedFaces);
+// or for the edges
+// const edgesGeometry = new BufferGeometry();
+// syncLines(edgesGeometry, replicadMeshedEdges);
+
+// Highlighting
+// These helpers also allow you to implement highlighting of faces or edges, using the groups functionality of threejs.
+// You can toggle a single face or edge with this helper:
+// toggleHighlight(facesGeometry, 2);
+`
+];
